@@ -42,6 +42,34 @@
           <button id="clearTrackBtn" class="danger">Clear GPS Track</button>
         </section>
 
+        <section class="ops-panel" aria-label="Irrigation operations tracking">
+          <h2>Operations tracker</h2>
+          <div class="field-grid">
+            <label>Zone
+              <select id="zoneSelect"></select>
+            </label>
+            <label>Trail / road stretch
+              <select id="trailSelect"></select>
+            </label>
+            <label>Asset type
+              <select id="assetTypeSelect"></select>
+            </label>
+            <label>Work type
+              <select id="workTypeSelect"></select>
+            </label>
+          </div>
+          <div id="zoneSummary" class="zone-summary">Select a zone to see status.</div>
+          <div class="controls ops-controls">
+            <button id="addAssetBtn">Add Asset Marker</button>
+            <button id="markVisitedBtn">Mark Zone Visited</button>
+            <button id="markCompleteBtn" class="primary">Mark Zone Complete</button>
+            <button id="startWorkBtn">Start Work Timer</button>
+            <button id="stopWorkBtn" class="primary" disabled>Stop / Save Work</button>
+            <button id="addLogBtn">Add Log Note</button>
+            <button id="exportLogCsvBtn">Export Log CSV</button>
+          </div>
+        </section>
+
         <section class="draw-panel" aria-label="Manual trail drawing tools">
           <h2>Manual trail marking</h2>
           <p id="drawHelp">Draw trails without driving them. Use freehand to sketch, or point mode to tap corners.</p>
@@ -64,6 +92,8 @@
         <footer class="panel-footer">
           <span id="trackCount">0 GPS points</span>
           <span id="drawnCount">0 drawn trails</span>
+          <span id="assetCount">0 assets</span>
+          <span id="logCount">0 logs</span>
           <span id="waypointCount">0 waypoints</span>
         </footer>
       </aside>
