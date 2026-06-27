@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Irrigation GPS" />
+    <title>Interactive Irrigation Mapping</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <h1>Interactive Irrigation Mapping</h1>
+        <span id="connectionStatus" class="pill">Idle</span>
+      </div>
+      <button id="installBtn" class="ghost" hidden>Install</button>
+    </header>
+
+    <main class="app-shell">
+      <div id="map" aria-label="Interactive GPS map"></div>
+
+      <aside class="panel" aria-label="GPS controls and readouts">
+        <section class="readout-grid">
+          <div><span class="label">Latitude</span><strong id="latReadout">--</strong></div>
+          <div><span class="label">Longitude</span><strong id="lngReadout">--</strong></div>
+          <div><span class="label">Accuracy</span><strong id="accuracyReadout">--</strong></div>
+          <div><span class="label">Speed</span><strong id="speedReadout">--</strong></div>
+          <div><span class="label">Heading</span><strong id="headingReadout">--</strong></div>
+          <div><span class="label">Altitude</span><strong id="altitudeReadout">--</strong></div>
+        </section>
+
+        <section class="controls">
+          <button id="gpsBtn" class="primary">Use My Location</button>
+          <button id="followBtn">Follow: On</button>
+          <button id="wakeBtn">Keep Screen Awake</button>
+          <button id="waypointBtn">Drop Waypoint</button>
+          <button id="clearTrackBtn" class="danger">Clear Track</button>
+        </section>
+
+        <section class="controls compact">
+          <button id="exportGeoJsonBtn">Export GeoJSON</button>
+          <button id="exportGpxBtn">Export GPX</button>
+          <label class="file-button">Import GeoJSON<input id="geojsonInput" type="file" accept=".geojson,.json,application/geo+json,application/json" /></label>
+        </section>
+
+        <footer class="panel-footer">
+          <span id="trackCount">0 track points</span>
+          <span id="waypointCount">0 waypoints</span>
+        </footer>
+      </aside>
+    </main>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
