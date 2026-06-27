@@ -66,8 +66,12 @@
             <button id="startWorkBtn">Start Work Timer</button>
             <button id="stopWorkBtn" class="primary" disabled>Stop / Save Work</button>
             <button id="addLogBtn">Add Log Note</button>
-            <button id="exportLogCsvBtn">Export Log CSV</button>
           </div>
+        </section>
+
+        <section class="recent-panel" aria-label="Last 10 saved records">
+          <h2>Last 10 saved</h2>
+          <ol id="recentList" class="recent-list"></ol>
         </section>
 
         <section class="draw-panel" aria-label="Manual trail drawing tools">
@@ -84,8 +88,6 @@
         </section>
 
         <section class="controls compact">
-          <button id="exportGeoJsonBtn">Export GeoJSON</button>
-          <button id="exportGpxBtn">Export GPX</button>
           <label class="file-button">Import GeoJSON<input id="geojsonInput" type="file" accept=".geojson,.json,application/geo+json,application/json" /></label>
         </section>
 
