@@ -22,9 +22,8 @@ Portable web-based GPS and operations mapping for Android field use. It is a sta
 - Asset markers for head gates, valves, boxes, checks, culverts, crossings, washouts, spray areas, problem spots, and notes.
 - Named waypoint drops.
 - Saved GPS track, drawn trails, assets, logs, zone status, and waypoints in browser storage.
+- Rolling **Last 10 saved** list for quick field recall.
 - GeoJSON import for routes, roads, POIs, and boundaries.
-- GeoJSON and GPX export, including GPS tracks, manually drawn trails, asset markers, and waypoints.
-- CSV work-log export for historical recall and spreadsheet review.
 - Basic PWA install support.
 - App shell and recently viewed map tiles cache for limited offline use.
 
@@ -51,9 +50,7 @@ https://snow663.github.io/Interactive-Irrigation-Mapping/
 4. Use **Follow: On** while driving or walking.
 5. Use **Drop Waypoint** for quick one-off notes.
 6. Use **Add Asset Marker** for known infrastructure like gates, valves, boxes, checks, culverts, crossings, washouts, spray areas, and problem spots.
-7. Use **Export GPX** for GPS apps/devices.
-8. Use **Export GeoJSON** for SW Maps, QGIS, or web maps.
-9. Use **Export Log CSV** for time history and work records.
+7. Use the **Last 10 saved** panel for quick recall of the most recent saved trails, assets, waypoints, work logs, visits, and completions.
 
 ## Operations tracker workflow
 
@@ -86,13 +83,14 @@ Saved trails appear in the **Trail / road stretch** selector for that zone. When
 5. Press **Stop / Save Work** when done.
 6. Add notes when prompted.
 
-This creates a historical log entry with start time, stop time, duration, zone, trail, work type, and notes.
+This creates an internal log entry with start time, stop time, duration, zone, trail, work type, and notes. It also creates a visible **Last 10 saved** entry.
 
 ### Zone status
 
 - **Mark Zone Visited** records that you were in the zone.
 - **Mark Zone Complete** records the zone as completed and increments the completion count.
 - The summary panel shows how long it has been since the zone was visited or completed.
+- Each visit/completion is also added to the **Last 10 saved** list.
 
 ### Asset markers
 
@@ -103,6 +101,22 @@ This creates a historical log entry with start time, stop time, duration, zone, 
 5. Name it and add notes.
 
 Asset marker types include head gate, valve, box, check, culvert, crossing, washout, spray area, problem spot, and note.
+
+## Last 10 saved
+
+The app no longer exposes export buttons. Instead, it keeps a rolling visible list of the last 10 saved records inside the portable browser app.
+
+Records currently added to the list:
+
+- Saved trails / road stretches
+- Asset markers
+- Waypoints
+- Work timer saves
+- Manual log notes
+- Zone visited marks
+- Zone complete marks
+
+The list is stored in browser local storage along with the rest of the map data. Opening the same app on another phone/browser will not automatically carry that list over.
 
 ## Manual trail drawing
 
@@ -132,11 +146,11 @@ Point-to-point mode is better for clean road-style routes. Freehand mode is bett
 
 - **Clear GPS Track** removes only the driven/walked breadcrumb track.
 - **Clear Drawn Trails** removes only manually drawn trails.
-- Waypoints, assets, logs, and zone status stay unless browser storage is cleared.
+- Waypoints, assets, logs, zone status, and the recent-saves list stay unless browser storage is cleared.
 
 ## Spraying and applicator notes
 
-The app now has a **Spraying** work type and a CSV log export. Treat this as a field recall tool, not a guaranteed compliance record system. Product labels, agency requirements, employer forms, and state/federal recordkeeping rules still control what must be recorded.
+The app has a **Spraying** work type and local recall/logging. Treat this as a field recall tool, not a guaranteed compliance record system. Product labels, agency requirements, employer forms, and state/federal recordkeeping rules still control what must be recorded.
 
 For spraying logs, use the note prompt to capture details such as product, mix/rate, target weed, road/stretch, weather, wind, acreage or distance, and any restricted-entry or access concerns required by your workplace procedure.
 
@@ -146,7 +160,7 @@ Browser GPS only works from HTTPS or localhost. GitHub Pages works because it se
 
 ## Data note
 
-Saved tracks, drawn trails, assets, logs, zone status, and waypoints are stored in that browser on that device. Export before clearing browser data or switching phones.
+Saved tracks, drawn trails, assets, logs, zone status, waypoints, and the last-10 saved list are stored in that browser on that device. Clearing browser data or switching phones loses that local storage.
 
 ## File layout
 
@@ -155,7 +169,7 @@ index.html                  App shell
 manifest.webmanifest        PWA install metadata
 service-worker.js           Offline shell and tile cache
 assets/icon.svg             App icon
-src/app.js                  Map, GPS, storage, drawing, operations, import, export, UI logic
+src/app.js                  Map, GPS, storage, drawing, operations, import, recent list, UI logic
 src/style.css               Mobile-first layout
 ```
 
