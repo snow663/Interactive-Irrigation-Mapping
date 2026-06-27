@@ -1,8 +1,13 @@
 const DEFAULT_CENTER = [44.6714, -103.8522];
 const DEFAULT_ZOOM = 13;
-const STORAGE_KEY = 'interactive-irrigation-map-v3';
-const LEGACY_KEYS = ['interactive-irrigation-map-v2', 'interactive-irrigation-map-v1'];
+const STORAGE_KEY = 'interactive-irrigation-map-v4';
+const LEGACY_KEYS = [
+  'interactive-irrigation-map-v3',
+  'interactive-irrigation-map-v2',
+  'interactive-irrigation-map-v1'
+];
 const MAX_TRACK_POINTS = 20000;
+const MAX_RECENT_SAVES = 10;
 const MIN_DRAW_DISTANCE_METERS = 2;
 const MPS_TO_MPH = 2.2369362921;
 const EARTH_RADIUS_METERS = 6371008.8;
@@ -62,7 +67,7 @@ const el = {
   startWorkBtn: $('startWorkBtn'),
   stopWorkBtn: $('stopWorkBtn'),
   addLogBtn: $('addLogBtn'),
-  exportLogCsvBtn: $('exportLogCsvBtn'),
+  recentList: $('recentList'),
   freehandBtn: $('freehandBtn'),
   pointDrawBtn: $('pointDrawBtn'),
   finishDrawBtn: $('finishDrawBtn'),
@@ -70,8 +75,6 @@ const el = {
   cancelDrawBtn: $('cancelDrawBtn'),
   clearDrawnBtn: $('clearDrawnBtn'),
   drawHelp: $('drawHelp'),
-  exportGeoJsonBtn: $('exportGeoJsonBtn'),
-  exportGpxBtn: $('exportGpxBtn'),
   geojsonInput: $('geojsonInput'),
   lat: $('latReadout'),
   lng: $('lngReadout'),
@@ -431,6 +434,20 @@ function normalizeZoneStatus(status = {}) {
   return result;
 }
 
+function normalizeRecentSaves(items = []) {
+  return items
+    .map((item, index) => ({
+      id: item.id || `recent-${Date.now()}-${index}`,
+      timestamp: Number.isFinite(item.timestamp) ? item.timestamp : Date.now(),
+      type: String(item.type || 'Saved'),
+      zoneId: zoneExists(item.zoneId) ? item.zoneId : '',
+      title: String(item.title || 'Saved record'),
+      details: String(item.details || '')
+    }))
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, MAX_RECENT_SAVES);
+}
+
 function loadState() {
   let saved = safeParse(localStorage.getItem(STORAGE_KEY), null);
   for (const key of LEGACY_KEYS) {
@@ -444,7 +461,8 @@ function loadState() {
     drawnTrails: normalizeDrawnTrails(saved.drawnTrails),
     assets: normalizeAssets(saved.assets),
     logs: normalizeLogs(saved.logs),
-    zoneStatus: normalizeZoneStatus(saved.zoneStatus)
+    zoneStatus: normalizeZoneStatus(saved.zoneStatus),
+    recentSaves: normalizeRecentSaves(saved.recentSaves)
   };
 }
 
@@ -455,9 +473,45 @@ function saveState() {
     drawnTrails: normalizeDrawnTrails(state.drawnTrails),
     assets: normalizeAssets(state.assets),
     logs: normalizeLogs(state.logs),
-    zoneStatus: normalizeZoneStatus(state.zoneStatus)
+    zoneStatus: normalizeZoneStatus(state.zoneStatus),
+    recentSaves: normalizeRecentSaves(state.recentSaves)
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function saveRecord(type, title, details = '', zoneId = selectedZoneId()) {
+  state.recentSaves.unshift({
+    id: `recent-${Date.now()}`,
+    timestamp: Date.now(),
+    type,
+    zoneId,
+    title,
+    details
+  });
+  state.recentSaves = normalizeRecentSaves(state.recentSaves);
+  saveState();
+  renderRecentSaves();
+}
+
+function renderRecentSaves() {
+  el.recentList.innerHTML = '';
+  if (!state.recentSaves.length) {
+    const empty = document.createElement('li');
+    empty.className = 'empty-recent';
+    empty.textContent = 'No saved records yet.';
+    el.recentList.append(empty);
+    return;
+  }
+
+  for (const item of state.recentSaves.slice(0, MAX_RECENT_SAVES)) {
+    const li = document.createElement('li');
+    li.innerHTML = [
+      `<strong>${escapeHtml(item.type)}: ${escapeHtml(item.title)}</strong>`,
+      `<span>${escapeHtml(item.zoneId ? zoneLabel(item.zoneId) : 'No zone')} • ${new Date(item.timestamp).toLocaleString()}</span>`,
+      item.details ? `<small>${escapeHtml(item.details)}</small>` : ''
+    ].filter(Boolean).join('');
+    el.recentList.append(li);
+  }
 }
 
 function zoneExists(zoneId) {
@@ -573,10 +627,6 @@ function trailById(id) {
   return state.drawnTrails.find((trail) => trail.id === id);
 }
 
-function assetById(id) {
-  return state.assets.find((asset) => asset.id === id);
-}
-
 function trailStats(trailId) {
   const logs = state.logs.filter((log) => log.trailId === trailId && Number.isFinite(log.durationMinutes));
   return {
@@ -621,7 +671,7 @@ function setZoneComplete(zoneId, timestamp = Date.now()) {
   state.zoneStatus[zoneId].completedCount += 1;
 }
 
-function addWaypoint(waypoint) {
+function addWaypointMarker(waypoint) {
   const marker = L.marker([waypoint.lat, waypoint.lng]);
   marker.bindPopup(`<strong>${escapeHtml(waypoint.name)}</strong><br>${waypoint.lat.toFixed(6)}, ${waypoint.lng.toFixed(6)}<br>${new Date(waypoint.timestamp).toLocaleString()}`);
   marker.addTo(waypointLayer);
@@ -684,144 +734,6 @@ function escapeHtml(value) {
     .replaceAll("'", '&#039;');
 }
 
-function escapeXml(value) {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&apos;');
-}
-
-function csvEscape(value) {
-  const text = value == null ? '' : String(value);
-  if (!/["]/.test(text) && !text.includes(',') && !text.includes('\n')) return text;
-  return `"${text.replaceAll('"', '""')}"`;
-}
-
-function coordinateFromPoint(point) {
-  const coordinate = [point.lng, point.lat];
-  if (Number.isFinite(point.altitude)) coordinate.push(point.altitude);
-  return coordinate;
-}
-
-function toGeoJson() {
-  const features = [];
-
-  if (state.track.length) {
-    features.push({
-      type: 'Feature',
-      properties: { kind: 'gps-track', name: 'GPS Track', point_count: state.track.length },
-      geometry: { type: 'LineString', coordinates: state.track.map(coordinateFromPoint) }
-    });
-  }
-
-  for (const trail of state.drawnTrails) {
-    features.push({
-      type: 'Feature',
-      properties: {
-        kind: 'manual-trail',
-        id: trail.id,
-        name: trail.name,
-        zone: trail.zoneId,
-        zone_label: zoneLabel(trail.zoneId),
-        draw_mode: trail.mode,
-        estimated_minutes: trail.estimatedMinutes,
-        timestamp: new Date(trail.timestamp).toISOString(),
-        point_count: trail.points.length
-      },
-      geometry: { type: 'LineString', coordinates: trail.points.map(coordinateFromPoint) }
-    });
-  }
-
-  for (const asset of state.assets) {
-    features.push({
-      type: 'Feature',
-      properties: {
-        kind: 'asset',
-        id: asset.id,
-        type: asset.type,
-        type_label: labelFor(ASSET_TYPES, asset.type),
-        zone: asset.zoneId,
-        zone_label: zoneLabel(asset.zoneId),
-        name: asset.name,
-        notes: asset.notes,
-        timestamp: new Date(asset.timestamp).toISOString(),
-        last_visited: asset.lastVisited ? new Date(asset.lastVisited).toISOString() : ''
-      },
-      geometry: { type: 'Point', coordinates: [asset.lng, asset.lat] }
-    });
-  }
-
-  for (const waypoint of state.waypoints) {
-    features.push({
-      type: 'Feature',
-      properties: { kind: 'waypoint', id: waypoint.id, name: waypoint.name, timestamp: new Date(waypoint.timestamp).toISOString() },
-      geometry: { type: 'Point', coordinates: [waypoint.lng, waypoint.lat] }
-    });
-  }
-
-  return { type: 'FeatureCollection', name: 'Interactive Irrigation Mapping Export', features };
-}
-
-function gpxTrack(name, points) {
-  if (!points.length) return '';
-  const trackPoints = points
-    .map((point) => {
-      const ele = Number.isFinite(point.altitude) ? `<ele>${point.altitude.toFixed(2)}</ele>` : '';
-      return `      <trkpt lat="${point.lat}" lon="${point.lng}">${ele}<time>${new Date(point.timestamp || Date.now()).toISOString()}</time></trkpt>`;
-    })
-    .join('\n');
-
-  return `  <trk>\n    <name>${escapeXml(name)}</name>\n    <trkseg>\n${trackPoints}\n    </trkseg>\n  </trk>`;
-}
-
-function toGpx() {
-  const waypoints = [
-    ...state.waypoints.map((point) => ({ name: point.name, lat: point.lat, lng: point.lng, timestamp: point.timestamp })),
-    ...state.assets.map((asset) => ({ name: `${labelFor(ASSET_TYPES, asset.type)} - ${asset.name}`, lat: asset.lat, lng: asset.lng, timestamp: asset.timestamp }))
-  ]
-    .map((point) => `  <wpt lat="${point.lat}" lon="${point.lng}"><name>${escapeXml(point.name)}</name><time>${new Date(point.timestamp).toISOString()}</time></wpt>`)
-    .join('\n');
-  const gpsTrack = gpxTrack('GPS Track', state.track);
-  const drawnTracks = state.drawnTrails.map((trail) => gpxTrack(`${zoneLabel(trail.zoneId)} - ${trail.name}`, trail.points)).filter(Boolean).join('\n');
-
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Interactive Irrigation Mapping" xmlns="http://www.topografix.com/GPX/1/1">\n${waypoints}\n${gpsTrack}\n${drawnTracks}\n</gpx>`;
-}
-
-function logsToCsv() {
-  const header = ['id', 'date_time', 'zone', 'trail', 'asset', 'work_type', 'duration_minutes', 'completed', 'notes'];
-  const rows = state.logs.map((log) => [
-    log.id,
-    new Date(log.timestamp).toISOString(),
-    zoneLabel(log.zoneId),
-    trailById(log.trailId)?.name || '',
-    assetById(log.assetId)?.name || '',
-    labelFor(WORK_TYPES, log.workType),
-    Number.isFinite(log.durationMinutes) ? log.durationMinutes.toFixed(1) : '',
-    log.completed ? 'yes' : 'no',
-    log.notes
-  ]);
-  return [header, ...rows].map((row) => row.map(csvEscape).join(',')).join('\n');
-}
-
-function downloadText(filename, text, mimeType) {
-  const blob = new Blob([text], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
-}
-
-function timestampedFilename(prefix, extension) {
-  const stamp = new Date().toISOString().replaceAll(':', '').replaceAll('-', '').slice(0, 15);
-  return `${prefix}-${stamp}.${extension}`;
-}
-
 function importGeoJson(geojson, name = 'Imported GeoJSON') {
   const layer = L.geoJSON(geojson, {
     style: { color: '#f97316', weight: 4, opacity: 0.85 },
@@ -846,7 +758,7 @@ function importGeoJson(geojson, name = 'Imported GeoJSON') {
 
 function initSavedLayers() {
   trackLayer.setLatLngs(state.track.map(toLatLng));
-  state.waypoints.forEach(addWaypoint);
+  state.waypoints.forEach(addWaypointMarker);
   redrawAssets();
   redrawDrawnTrails();
   const latLngs = [
@@ -858,6 +770,7 @@ function initSavedLayers() {
   if (latLngs.length) map.fitBounds(L.latLngBounds(latLngs), { padding: [24, 24], maxZoom: 17 });
   updateCounts();
   updateZoneSummary();
+  renderRecentSaves();
 }
 
 function setFollowMode(value) {
@@ -999,10 +912,10 @@ function finishDrawMode() {
 
   state.drawnTrails.push(trail);
   addDrawnTrail(trail);
-  saveState();
   updateTrailSelect();
   updateCounts();
   updateZoneSummary();
+  saveRecord('Trail', trail.name, `Estimated ${minutesLabel(trail.estimatedMinutes)} • ${trail.points.length} points`, trail.zoneId);
   cancelDrawMode();
   setStatus('Drawn trail saved', 'ok');
 }
@@ -1078,9 +991,9 @@ function addAssetAtCurrentLocation() {
 
   state.assets.push(asset);
   addAssetMarker(asset);
-  saveState();
   updateCounts();
   updateZoneSummary();
+  saveRecord('Asset', asset.name, `${labelFor(ASSET_TYPES, asset.type)}${asset.notes ? ` • ${asset.notes}` : ''}`, asset.zoneId);
   setStatus('Asset marker saved', 'ok');
 }
 
@@ -1089,7 +1002,7 @@ function markZoneVisited() {
   const now = Date.now();
   setZoneVisited(zoneId, now);
   addLog({ timestamp: now, zoneId, workType: 'scouting', notes: 'Zone marked visited' });
-  saveState();
+  saveRecord('Visited', zoneLabel(zoneId), 'Zone marked visited', zoneId);
   updateZoneSummary();
   setStatus(`${zoneLabel(zoneId)} marked visited`, 'ok');
 }
@@ -1100,7 +1013,7 @@ function markZoneComplete() {
   const notes = window.prompt('Completion notes:', '') ?? '';
   setZoneComplete(zoneId, now);
   addLog({ timestamp: now, zoneId, workType: selectedWorkType(), completed: true, notes: notes || 'Zone marked complete' });
-  saveState();
+  saveRecord('Complete', zoneLabel(zoneId), notes || 'Zone marked complete', zoneId);
   updateZoneSummary();
   setStatus(`${zoneLabel(zoneId)} marked complete`, 'ok');
 }
@@ -1137,6 +1050,13 @@ function stopWorkTimer() {
     notes
   });
 
+  saveRecord(
+    'Work',
+    trail ? trail.name : labelFor(WORK_TYPES, activeWork.workType),
+    `${labelFor(WORK_TYPES, activeWork.workType)} • ${minutesLabel(durationMinutes)}${notes ? ` • ${notes}` : ''}`,
+    activeWork.zoneId
+  );
+
   activeWork = null;
   el.startWorkBtn.disabled = false;
   el.stopWorkBtn.disabled = true;
@@ -1162,6 +1082,7 @@ function addManualLogNote() {
     notes
   });
   redrawDrawnTrails();
+  saveRecord('Log', labelFor(WORK_TYPES, selectedWorkType()), `${minutesLabel(durationMinutes)} • ${notes}`, zoneId);
   setStatus('Log note saved', 'ok');
 }
 
@@ -1193,9 +1114,9 @@ el.waypointBtn.addEventListener('click', () => {
   if (name === null) return;
   const waypoint = { id: `wp-${Date.now()}`, name: name.trim() || defaultName, lat: point.lat, lng: point.lng, timestamp: Date.now() };
   state.waypoints.push(waypoint);
-  addWaypoint(waypoint);
+  addWaypointMarker(waypoint);
   updateCounts();
-  saveState();
+  saveRecord('Waypoint', waypoint.name, `${waypoint.lat.toFixed(6)}, ${waypoint.lng.toFixed(6)}`, selectedZoneId());
   setStatus('Waypoint saved', 'ok');
 });
 
@@ -1220,9 +1141,6 @@ el.markCompleteBtn.addEventListener('click', markZoneComplete);
 el.startWorkBtn.addEventListener('click', startWorkTimer);
 el.stopWorkBtn.addEventListener('click', stopWorkTimer);
 el.addLogBtn.addEventListener('click', addManualLogNote);
-el.exportLogCsvBtn.addEventListener('click', () => {
-  downloadText(timestampedFilename('irrigation-work-log', 'csv'), logsToCsv(), 'text/csv');
-});
 
 el.freehandBtn.addEventListener('click', () => startDrawMode('freehand'));
 el.pointDrawBtn.addEventListener('click', () => startDrawMode('point'));
@@ -1240,14 +1158,6 @@ el.clearDrawnBtn.addEventListener('click', () => {
   updateDrawButtons();
   updateZoneSummary();
   setStatus('Drawn trails cleared', 'warn');
-});
-
-el.exportGeoJsonBtn.addEventListener('click', () => {
-  downloadText(timestampedFilename('irrigation-map-export', 'geojson'), JSON.stringify(toGeoJson(), null, 2), 'application/geo+json');
-});
-
-el.exportGpxBtn.addEventListener('click', () => {
-  downloadText(timestampedFilename('irrigation-map-track', 'gpx'), toGpx(), 'application/gpx+xml');
 });
 
 el.geojsonInput.addEventListener('change', async (event) => {
