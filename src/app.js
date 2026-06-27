@@ -1,7 +1,9 @@
 const DEFAULT_CENTER = [44.6714, -103.8522];
 const DEFAULT_ZOOM = 13;
-const STORAGE_KEY = 'interactive-irrigation-map-v1';
+const STORAGE_KEY = 'interactive-irrigation-map-v2';
+const LEGACY_STORAGE_KEY = 'interactive-irrigation-map-v1';
 const MAX_TRACK_POINTS = 20000;
+const MIN_DRAW_DISTANCE_METERS = 2;
 const MPS_TO_MPH = 2.2369362921;
 const EARTH_RADIUS_METERS = 6371008.8;
 
@@ -15,6 +17,13 @@ const el = {
   wakeBtn: $('wakeBtn'),
   waypointBtn: $('waypointBtn'),
   clearTrackBtn: $('clearTrackBtn'),
+  freehandBtn: $('freehandBtn'),
+  pointDrawBtn: $('pointDrawBtn'),
+  finishDrawBtn: $('finishDrawBtn'),
+  undoDrawBtn: $('undoDrawBtn'),
+  cancelDrawBtn: $('cancelDrawBtn'),
+  clearDrawnBtn: $('clearDrawnBtn'),
+  drawHelp: $('drawHelp'),
   exportGeoJsonBtn: $('exportGeoJsonBtn'),
   exportGpxBtn: $('exportGpxBtn'),
   geojsonInput: $('geojsonInput'),
@@ -25,6 +34,7 @@ const el = {
   heading: $('headingReadout'),
   altitude: $('altitudeReadout'),
   trackCount: $('trackCount'),
+  drawnCount: $('drawnCount'),
   waypointCount: $('waypointCount')
 };
 
@@ -36,6 +46,12 @@ let wakeRequested = false;
 let wakeLock = null;
 let deferredInstallPrompt = null;
 let saveTimer = null;
+let drawMode = null;
+let activeDrawPoints = [];
+let activeDrawLine = null;
+let activeDrawMarkers = [];
+let isFreehandDrawing = false;
+let mapInteractionsLocked = false;
 
 const map = L.map('map', { zoomControl: false, preferCanvas: true }).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -56,6 +72,8 @@ L.control.layers({ Streets: streetLayer, Imagery: imageryLayer }, {}, { position
 
 const trackLayer = L.polyline([], { weight: 4, opacity: 0.9, color: '#2563eb' }).addTo(map);
 const waypointLayer = L.layerGroup().addTo(map);
+const drawnTrailLayer = L.layerGroup().addTo(map);
+const draftDrawLayer = L.layerGroup().addTo(map);
 const importedLayer = L.layerGroup().addTo(map);
 
 const gpsIcon = L.divIcon({
@@ -111,6 +129,10 @@ function cleanNumber(value) {
   return Number.isFinite(value) ? value : null;
 }
 
+function toLatLng(point) {
+  return [point.lat, point.lng];
+}
+
 function normalizePosition(position) {
   const coords = position.coords;
   const point = {
@@ -149,7 +171,8 @@ function updateReadouts(point) {
 }
 
 function updateCounts() {
-  el.trackCount.textContent = `${state.track.length} track point${state.track.length === 1 ? '' : 's'}`;
+  el.trackCount.textContent = `${state.track.length} GPS point${state.track.length === 1 ? '' : 's'}`;
+  el.drawnCount.textContent = `${state.drawnTrails.length} drawn trail${state.drawnTrails.length === 1 ? '' : 's'}`;
   el.waypointCount.textContent = `${state.waypoints.length} waypoint${state.waypoints.length === 1 ? '' : 's'}`;
 }
 
@@ -160,7 +183,7 @@ function ensureGpsLayers() {
 
 function updateMapPosition(point, addTrackPoint = false) {
   ensureGpsLayers();
-  const latLng = [point.lat, point.lng];
+  const latLng = toLatLng(point);
   locationMarker.setLatLng(latLng);
   accuracyCircle.setLatLng(latLng);
   accuracyCircle.setRadius(Number.isFinite(point.accuracy) ? point.accuracy : 0);
@@ -187,7 +210,7 @@ function recordPoint(position) {
 
   if (state.track.length > MAX_TRACK_POINTS) {
     state.track = state.track.slice(-MAX_TRACK_POINTS);
-    trackLayer.setLatLngs(state.track.map((p) => [p.lat, p.lng]));
+    trackLayer.setLatLngs(state.track.map(toLatLng));
   }
 
   updateMapPosition(point, true);
@@ -297,13 +320,33 @@ function normalizeWaypoints(points = []) {
     }));
 }
 
+function normalizeDrawnTrails(trails = []) {
+  return trails
+    .map((trail, index) => ({
+      id: trail.id || `trail-${Date.now()}-${index}`,
+      name: String(trail.name || `Drawn Trail ${index + 1}`),
+      mode: trail.mode === 'freehand' ? 'freehand' : 'point',
+      timestamp: Number.isFinite(trail.timestamp) ? trail.timestamp : Date.now(),
+      points: normalizeTrack(trail.points || [])
+    }))
+    .filter((trail) => trail.points.length >= 2);
+}
+
 function loadState() {
-  const saved = safeParse(localStorage.getItem(STORAGE_KEY), {});
-  return { track: normalizeTrack(saved.track), waypoints: normalizeWaypoints(saved.waypoints) };
+  const saved = safeParse(localStorage.getItem(STORAGE_KEY), null) || safeParse(localStorage.getItem(LEGACY_STORAGE_KEY), {});
+  return {
+    track: normalizeTrack(saved.track),
+    waypoints: normalizeWaypoints(saved.waypoints),
+    drawnTrails: normalizeDrawnTrails(saved.drawnTrails)
+  };
 }
 
 function saveState() {
-  state = { track: normalizeTrack(state.track), waypoints: normalizeWaypoints(state.waypoints) };
+  state = {
+    track: normalizeTrack(state.track),
+    waypoints: normalizeWaypoints(state.waypoints),
+    drawnTrails: normalizeDrawnTrails(state.drawnTrails)
+  };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
@@ -311,6 +354,22 @@ function addWaypoint(waypoint) {
   const marker = L.marker([waypoint.lat, waypoint.lng]);
   marker.bindPopup(`<strong>${escapeHtml(waypoint.name)}</strong><br>${waypoint.lat.toFixed(6)}, ${waypoint.lng.toFixed(6)}<br>${new Date(waypoint.timestamp).toLocaleString()}`);
   marker.addTo(waypointLayer);
+}
+
+function addDrawnTrail(trail) {
+  const line = L.polyline(trail.points.map(toLatLng), {
+    weight: 5,
+    opacity: 0.9,
+    color: '#22c55e',
+    dashArray: trail.mode === 'freehand' ? null : '8 6'
+  });
+  line.bindPopup(`<strong>${escapeHtml(trail.name)}</strong><br>${trail.mode === 'freehand' ? 'Freehand' : 'Point-to-point'}<br>${trail.points.length} points`);
+  line.addTo(drawnTrailLayer);
+}
+
+function redrawDrawnTrails() {
+  drawnTrailLayer.clearLayers();
+  state.drawnTrails.forEach(addDrawnTrail);
 }
 
 function escapeHtml(value) {
@@ -339,42 +398,70 @@ function coordinateFromPoint(point) {
 
 function toGeoJson() {
   const features = [];
+
   if (state.track.length) {
     features.push({
       type: 'Feature',
-      properties: { name: 'GPS Track', point_count: state.track.length },
+      properties: { kind: 'gps-track', name: 'GPS Track', point_count: state.track.length },
       geometry: { type: 'LineString', coordinates: state.track.map(coordinateFromPoint) }
     });
   }
+
+  for (const trail of state.drawnTrails) {
+    features.push({
+      type: 'Feature',
+      properties: {
+        kind: 'manual-trail',
+        id: trail.id,
+        name: trail.name,
+        draw_mode: trail.mode,
+        timestamp: new Date(trail.timestamp).toISOString(),
+        point_count: trail.points.length
+      },
+      geometry: { type: 'LineString', coordinates: trail.points.map(coordinateFromPoint) }
+    });
+  }
+
   for (const waypoint of state.waypoints) {
     features.push({
       type: 'Feature',
-      properties: { id: waypoint.id, name: waypoint.name, timestamp: new Date(waypoint.timestamp).toISOString() },
+      properties: { kind: 'waypoint', id: waypoint.id, name: waypoint.name, timestamp: new Date(waypoint.timestamp).toISOString() },
       geometry: { type: 'Point', coordinates: [waypoint.lng, waypoint.lat] }
     });
   }
+
   return { type: 'FeatureCollection', name: 'Interactive Irrigation Mapping Export', features };
+}
+
+function gpxTrack(name, points) {
+  if (!points.length) return '';
+  const trackPoints = points
+    .map((point) => {
+      const ele = Number.isFinite(point.altitude) ? `<ele>${point.altitude.toFixed(2)}</ele>` : '';
+      return `      <trkpt lat="${point.lat}" lon="${point.lng}">${ele}<time>${new Date(point.timestamp || Date.now()).toISOString()}</time></trkpt>`;
+    })
+    .join('\n');
+
+  return `  <trk>
+    <name>${escapeXml(name)}</name>
+    <trkseg>
+${trackPoints}
+    </trkseg>
+  </trk>`;
 }
 
 function toGpx() {
   const waypoints = state.waypoints
     .map((point) => `  <wpt lat="${point.lat}" lon="${point.lng}"><name>${escapeXml(point.name)}</name><time>${new Date(point.timestamp).toISOString()}</time></wpt>`)
     .join('\n');
-  const trackPoints = state.track
-    .map((point) => {
-      const ele = Number.isFinite(point.altitude) ? `<ele>${point.altitude.toFixed(2)}</ele>` : '';
-      return `      <trkpt lat="${point.lat}" lon="${point.lng}">${ele}<time>${new Date(point.timestamp).toISOString()}</time></trkpt>`;
-    })
-    .join('\n');
+  const gpsTrack = gpxTrack('GPS Track', state.track);
+  const drawnTracks = state.drawnTrails.map((trail) => gpxTrack(trail.name, trail.points)).filter(Boolean).join('\n');
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="Interactive Irrigation Mapping" xmlns="http://www.topografix.com/GPX/1/1">
 ${waypoints}
-  <trk>
-    <name>GPS Track</name>
-    <trkseg>
-${trackPoints}
-    </trkseg>
-  </trk>
+${gpsTrack}
+${drawnTracks}
 </gpx>`;
 }
 
@@ -418,11 +505,204 @@ function importGeoJson(geojson, name = 'Imported GeoJSON') {
 }
 
 function initSavedLayers() {
-  trackLayer.setLatLngs(state.track.map((point) => [point.lat, point.lng]));
+  trackLayer.setLatLngs(state.track.map(toLatLng));
   state.waypoints.forEach(addWaypoint);
-  const latLngs = [...state.track.map((p) => [p.lat, p.lng]), ...state.waypoints.map((p) => [p.lat, p.lng])];
+  redrawDrawnTrails();
+  const latLngs = [
+    ...state.track.map(toLatLng),
+    ...state.waypoints.map(toLatLng),
+    ...state.drawnTrails.flatMap((trail) => trail.points.map(toLatLng))
+  ];
   if (latLngs.length) map.fitBounds(L.latLngBounds(latLngs), { padding: [24, 24], maxZoom: 17 });
   updateCounts();
+}
+
+function setFollowMode(value) {
+  followMode = value;
+  el.followBtn.textContent = `Follow: ${followMode ? 'On' : 'Off'}`;
+  el.followBtn.classList.toggle('active', followMode);
+}
+
+function lockMapInteractions(lock) {
+  if (lock === mapInteractionsLocked) return;
+  mapInteractionsLocked = lock;
+  const method = lock ? 'disable' : 'enable';
+  map.dragging[method]();
+  map.touchZoom[method]();
+  map.doubleClickZoom[method]();
+  map.scrollWheelZoom[method]();
+  map.boxZoom[method]();
+  map.keyboard[method]();
+}
+
+function clearDraft() {
+  activeDrawPoints = [];
+  activeDrawLine = null;
+  activeDrawMarkers = [];
+  draftDrawLayer.clearLayers();
+  updateDrawButtons();
+}
+
+function createDraftLine() {
+  if (activeDrawLine) return activeDrawLine;
+  activeDrawLine = L.polyline([], {
+    weight: 5,
+    opacity: 0.95,
+    color: '#22c55e',
+    dashArray: drawMode === 'point' ? '8 6' : null
+  }).addTo(draftDrawLayer);
+  return activeDrawLine;
+}
+
+function appendDraftPoint(point, showMarker = false) {
+  const last = activeDrawPoints[activeDrawPoints.length - 1];
+  if (last && distanceMeters(last, point) < MIN_DRAW_DISTANCE_METERS && drawMode === 'freehand') return;
+
+  activeDrawPoints.push(point);
+  createDraftLine().setLatLngs(activeDrawPoints.map(toLatLng));
+
+  if (showMarker) {
+    const marker = L.circleMarker(toLatLng(point), {
+      radius: 5,
+      weight: 2,
+      color: '#bbf7d0',
+      fillColor: '#22c55e',
+      fillOpacity: 0.9
+    }).addTo(draftDrawLayer);
+    activeDrawMarkers.push(marker);
+  }
+
+  updateDrawButtons();
+}
+
+function updateDrawButtons() {
+  const active = drawMode !== null;
+  const enoughPoints = activeDrawPoints.length >= 2;
+
+  el.freehandBtn.classList.toggle('active', drawMode === 'freehand');
+  el.pointDrawBtn.classList.toggle('active', drawMode === 'point');
+  el.finishDrawBtn.disabled = !enoughPoints;
+  el.undoDrawBtn.disabled = !active || activeDrawPoints.length === 0;
+  el.cancelDrawBtn.disabled = !active;
+  el.clearDrawnBtn.disabled = state.drawnTrails.length === 0;
+
+  if (!active) {
+    el.drawHelp.textContent = 'Draw trails without driving them. Use freehand to sketch, or point mode to tap corners.';
+  } else if (drawMode === 'freehand') {
+    el.drawHelp.textContent = activeDrawPoints.length
+      ? `${activeDrawPoints.length} sketch points. Release your finger, then Save Trail or Cancel Draw.`
+      : 'Drag on the map to sketch a trail. Map panning is locked while freehand mode is active.';
+  } else {
+    el.drawHelp.textContent = activeDrawPoints.length
+      ? `${activeDrawPoints.length} route points. Tap more corners, Undo Point, or Save Trail.`
+      : 'Tap the map at each corner or bend in the trail, then Save Trail.';
+  }
+}
+
+function startDrawMode(mode) {
+  if (drawMode === mode) {
+    cancelDrawMode();
+    return;
+  }
+
+  clearDraft();
+  drawMode = mode;
+  setFollowMode(false);
+  map.getContainer().classList.add('drawing-map');
+  lockMapInteractions(mode === 'freehand');
+
+  if (mode === 'point') {
+    map.on('click', handlePointDrawClick);
+    setStatus('Point drawing: tap the trail corners', 'warn');
+  } else {
+    setStatus('Freehand drawing: drag on the map', 'warn');
+  }
+
+  updateDrawButtons();
+}
+
+function cancelDrawMode() {
+  if (drawMode === 'point') map.off('click', handlePointDrawClick);
+  drawMode = null;
+  isFreehandDrawing = false;
+  lockMapInteractions(false);
+  map.getContainer().classList.remove('drawing-map');
+  clearDraft();
+  setStatus('Drawing canceled', 'warn');
+}
+
+function finishDrawMode() {
+  if (activeDrawPoints.length < 2) {
+    setStatus('A trail needs at least two points', 'warn');
+    return;
+  }
+
+  const defaultName = `Drawn Trail ${state.drawnTrails.length + 1}`;
+  const name = window.prompt('Trail name:', defaultName);
+  if (name === null) return;
+
+  const trail = {
+    id: `trail-${Date.now()}`,
+    name: name.trim() || defaultName,
+    mode: drawMode || 'point',
+    timestamp: Date.now(),
+    points: normalizeTrack(activeDrawPoints)
+  };
+
+  state.drawnTrails.push(trail);
+  addDrawnTrail(trail);
+  saveState();
+  updateCounts();
+  cancelDrawMode();
+  setStatus('Drawn trail saved', 'ok');
+}
+
+function undoDrawPoint() {
+  if (!activeDrawPoints.length) return;
+  activeDrawPoints.pop();
+
+  const marker = activeDrawMarkers.pop();
+  if (marker) draftDrawLayer.removeLayer(marker);
+
+  if (activeDrawLine) activeDrawLine.setLatLngs(activeDrawPoints.map(toLatLng));
+  updateDrawButtons();
+}
+
+function handlePointDrawClick(event) {
+  if (drawMode !== 'point') return;
+  appendDraftPoint({ lat: event.latlng.lat, lng: event.latlng.lng, timestamp: Date.now() }, true);
+}
+
+function pointFromPointerEvent(event) {
+  const latLng = map.mouseEventToLatLng(event);
+  return { lat: latLng.lat, lng: latLng.lng, timestamp: Date.now() };
+}
+
+function handleFreehandPointerDown(event) {
+  if (drawMode !== 'freehand') return;
+  if (event.pointerType === 'mouse' && event.button !== 0) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  isFreehandDrawing = true;
+  map.getContainer().setPointerCapture?.(event.pointerId);
+  appendDraftPoint(pointFromPointerEvent(event), false);
+}
+
+function handleFreehandPointerMove(event) {
+  if (drawMode !== 'freehand' || !isFreehandDrawing) return;
+  event.preventDefault();
+  event.stopPropagation();
+  appendDraftPoint(pointFromPointerEvent(event), false);
+}
+
+function handleFreehandPointerUp(event) {
+  if (drawMode !== 'freehand') return;
+  event.preventDefault();
+  event.stopPropagation();
+  isFreehandDrawing = false;
+  map.getContainer().releasePointerCapture?.(event.pointerId);
+  updateDrawButtons();
 }
 
 el.gpsBtn.addEventListener('click', () => {
@@ -431,9 +711,7 @@ el.gpsBtn.addEventListener('click', () => {
 });
 
 el.followBtn.addEventListener('click', () => {
-  followMode = !followMode;
-  el.followBtn.textContent = `Follow: ${followMode ? 'On' : 'Off'}`;
-  el.followBtn.classList.toggle('active', followMode);
+  setFollowMode(!followMode);
   if (followMode && lastPoint) updateMapPosition(lastPoint, false);
 });
 
@@ -463,12 +741,28 @@ el.waypointBtn.addEventListener('click', () => {
 
 el.clearTrackBtn.addEventListener('click', () => {
   if (!state.track.length) return;
-  if (!window.confirm('Clear the recorded track from this browser? Waypoints will stay.')) return;
+  if (!window.confirm('Clear the recorded GPS track from this browser? Waypoints and drawn trails will stay.')) return;
   state.track = [];
   trackLayer.setLatLngs([]);
   updateCounts();
   saveState();
-  setStatus('Track cleared', 'warn');
+  setStatus('GPS track cleared', 'warn');
+});
+
+el.freehandBtn.addEventListener('click', () => startDrawMode('freehand'));
+el.pointDrawBtn.addEventListener('click', () => startDrawMode('point'));
+el.finishDrawBtn.addEventListener('click', finishDrawMode);
+el.undoDrawBtn.addEventListener('click', undoDrawPoint);
+el.cancelDrawBtn.addEventListener('click', cancelDrawMode);
+el.clearDrawnBtn.addEventListener('click', () => {
+  if (!state.drawnTrails.length) return;
+  if (!window.confirm('Clear all manually drawn trails from this browser? GPS track and waypoints will stay.')) return;
+  state.drawnTrails = [];
+  drawnTrailLayer.clearLayers();
+  updateCounts();
+  saveState();
+  updateDrawButtons();
+  setStatus('Drawn trails cleared', 'warn');
 });
 
 el.exportGeoJsonBtn.addEventListener('click', () => {
@@ -491,6 +785,12 @@ el.geojsonInput.addEventListener('change', async (event) => {
     el.geojsonInput.value = '';
   }
 });
+
+const mapContainer = map.getContainer();
+mapContainer.addEventListener('pointerdown', handleFreehandPointerDown, { passive: false });
+mapContainer.addEventListener('pointermove', handleFreehandPointerMove, { passive: false });
+mapContainer.addEventListener('pointerup', handleFreehandPointerUp, { passive: false });
+mapContainer.addEventListener('pointercancel', handleFreehandPointerUp, { passive: false });
 
 window.addEventListener('beforeinstallprompt', (event) => {
   event.preventDefault();
@@ -518,5 +818,6 @@ if (!window.isSecureContext) setStatus('GPS needs HTTPS or localhost', 'error');
 else if (!navigator.geolocation) setStatus('GPS unavailable in this browser', 'error');
 else setStatus('Ready', 'ok');
 
-el.followBtn.classList.add('active');
+setFollowMode(true);
 initSavedLayers();
+updateDrawButtons();
