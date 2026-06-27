@@ -39,7 +39,20 @@
           <button id="followBtn">Follow: On</button>
           <button id="wakeBtn">Keep Screen Awake</button>
           <button id="waypointBtn">Drop Waypoint</button>
-          <button id="clearTrackBtn" class="danger">Clear Track</button>
+          <button id="clearTrackBtn" class="danger">Clear GPS Track</button>
+        </section>
+
+        <section class="draw-panel" aria-label="Manual trail drawing tools">
+          <h2>Manual trail marking</h2>
+          <p id="drawHelp">Draw trails without driving them. Use freehand to sketch, or point mode to tap corners.</p>
+          <div class="controls draw-controls">
+            <button id="freehandBtn">Freehand Draw</button>
+            <button id="pointDrawBtn">Point-to-Point</button>
+            <button id="finishDrawBtn" class="primary" disabled>Save Trail</button>
+            <button id="undoDrawBtn" disabled>Undo Point</button>
+            <button id="cancelDrawBtn" disabled>Cancel Draw</button>
+            <button id="clearDrawnBtn" class="danger">Clear Drawn Trails</button>
+          </div>
         </section>
 
         <section class="controls compact">
@@ -49,7 +62,8 @@
         </section>
 
         <footer class="panel-footer">
-          <span id="trackCount">0 track points</span>
+          <span id="trackCount">0 GPS points</span>
+          <span id="drawnCount">0 drawn trails</span>
           <span id="waypointCount">0 waypoints</span>
         </footer>
       </aside>
