@@ -9,11 +9,14 @@ Portable web-based GPS mapping for Android field use. It is a static site, so th
 - Latitude, longitude, accuracy, speed, heading, and altitude readouts.
 - Live location marker with accuracy circle.
 - Follow-me mode.
-- Breadcrumb track recording.
+- Breadcrumb GPS track recording.
+- Manual trail drawing without driving the trail.
+- Freehand draw mode for sketching trails by dragging on the map.
+- Point-to-point draw mode for tapping corners, bends, and intersections.
 - Named waypoint drops.
-- Saved track and waypoints in browser storage.
+- Saved GPS track, drawn trails, and waypoints in browser storage.
 - GeoJSON import for routes, roads, POIs, and boundaries.
-- GeoJSON and GPX export.
+- GeoJSON and GPX export, including GPS tracks, manually drawn trails, and waypoints.
 - Basic PWA install support.
 - App shell and recently viewed map tiles cache for limited offline use.
 
@@ -42,13 +45,43 @@ https://snow663.github.io/Interactive-Irrigation-Mapping/
 6. Use **Export GPX** for GPS apps/devices.
 7. Use **Export GeoJSON** for SW Maps, QGIS, or web maps.
 
+## Manual trail drawing
+
+Use this when you need to mark a road, trail, ditch bank, access path, or route without physically driving it.
+
+### Freehand Draw
+
+1. Press **Freehand Draw**.
+2. Drag your finger or mouse across the map along the trail.
+3. Release when the sketch is done.
+4. Press **Save Trail**.
+5. Name the trail.
+
+Freehand mode locks map panning while it is active so your finger stroke becomes a trail instead of moving the map.
+
+### Point-to-Point
+
+1. Press **Point-to-Point**.
+2. Tap each bend, corner, intersection, gate, crossing, or end point.
+3. Use **Undo Point** if you tap the wrong spot.
+4. Press **Save Trail**.
+5. Name the trail.
+
+Point-to-point mode is better for clean road-style routes. Freehand mode is better for rough trails, washouts, or organic paths.
+
+### Clearing data
+
+- **Clear GPS Track** removes only the driven/walked breadcrumb track.
+- **Clear Drawn Trails** removes only manually drawn trails.
+- Waypoints stay unless browser storage is cleared.
+
 ## Important GPS note
 
 Browser GPS only works from HTTPS or localhost. GitHub Pages works because it serves over HTTPS. Opening `index.html` directly from Android file storage usually will not allow location permission.
 
 ## Data note
 
-Saved tracks and waypoints are stored in that browser on that device. Export before clearing browser data or switching phones.
+Saved tracks, drawn trails, and waypoints are stored in that browser on that device. Export before clearing browser data or switching phones.
 
 ## File layout
 
@@ -57,7 +90,7 @@ index.html                  App shell
 manifest.webmanifest        PWA install metadata
 service-worker.js           Offline shell and tile cache
 assets/icon.svg             App icon
-src/app.js                  Map, GPS, storage, import, export, UI logic
+src/app.js                  Map, GPS, storage, drawing, import, export, UI logic
 src/style.css               Mobile-first layout
 ```
 
