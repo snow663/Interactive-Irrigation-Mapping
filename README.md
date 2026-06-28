@@ -4,19 +4,51 @@ Portable web-based GPS and operations mapping for Android and desktop field use.
 
 ## Current model
 
-The app now separates **work overlays** from **trail flags**.
+The app now has a hard split between **Admin definition mode** and **Field operations mode**.
 
-### Work overlays
+### Admin definition mode
+
+Use `admin.html` to create and correct locked map definitions:
+
+- Zones
+- Zone boundaries
+- Trails / O/M roads
+- Mowing trail overlay membership
+- Spraying trail overlay membership
+- O/M road flags
+- Daily rider travel flags
+- Markers / POIs / hazards
+- Brush / POI / hazard cutting flags
+
+Admin also still edits the **Last 10 saved** list when a recent operational entry needs corrected or removed.
+
+### Field operations mode
+
+Use `index.html` for daily work. Field mode can:
+
+- Start/stop GPS
+- Show/hide overlays
+- Find the nearest O/M-road entry
+- Build a rough work plan
+- Mark a zone visited
+- Mark a zone complete
+- Start/stop work timers
+- Add operational log notes
+
+Field mode does **not** create, edit, or delete zones, trails, or markers. That prevents accidental map-definition changes while working.
+
+## Work overlays
 
 These are selectable visibility layers:
 
 - **Mowing**
 - **Spraying**
 - **Brush / POI / hazard cutting**
+- **Zone boundaries**
 
 Mowing and spraying are road/stretch overlays. Brush / POI / hazard cutting is a point overlay for head gates, checks, valves, washouts, hazards, problem spots, POIs, and other marked locations needing cut out or cleared.
 
-### Trail flags
+## Trail flags
 
 These are not separate overlay toggles. They modify how a trail is styled and used by logistics:
 
@@ -24,25 +56,6 @@ These are not separate overlay toggles. They modify how a trail is styled and us
 - **Daily rider travel**
 
 Daily rider travel is a color/style flag on the road, not a separate overlay.
-
-## Key features
-
-- Interactive Leaflet/OpenStreetMap map.
-- Android browser GPS through `navigator.geolocation.watchPosition()`.
-- Follow-me mode and GPS breadcrumb tracking.
-- Manual trail drawing without driving the trail.
-- Freehand and point-to-point drawing.
-- Ditch rider zones: Ride 1, Ride 2, Ride 4, Ride 5, Ride 6, Ride 7, Ride 8, Ride 10.
-- Work overlays for mowing, spraying, and brush / POI / hazard cutting.
-- Trail flags for O/M roads and daily rider travel.
-- Color/symbol key using the **Key** button.
-- Collapsible main control panel using the **Panel** button.
-- Logistics panel with nearest O/M-road entry and rough work-day planning.
-- Asset markers for head gates, valves, boxes, checks, culverts, crossings, washouts, spray areas, hazards, problem spots, POIs, and notes.
-- Last 10 saved list for quick local recall.
-- Admin page for editing or removing incorrect Last 10 saved records.
-- GeoJSON import for routes, roads, POIs, and boundaries.
-- App shell and recently viewed map tiles cache for limited offline use.
 
 ## Enable GitHub Pages
 
@@ -53,7 +66,7 @@ Daily rider travel is a color/style flag on the road, not a separate overlay.
 5. Select branch `main` and folder `/ (root)`.
 6. Save.
 
-The app should publish at:
+The field app should publish at:
 
 ```text
 https://snow663.github.io/Interactive-Irrigation-Mapping/
@@ -65,19 +78,71 @@ The admin page should publish at:
 https://snow663.github.io/Interactive-Irrigation-Mapping/admin.html
 ```
 
-## Basic field workflow
+## Admin JSON formats
 
-1. Open the app on Android Chrome or desktop.
-2. Press **Use My Location** when GPS is needed.
-3. Use **Panel** to hide/show the control panel.
-4. Use **Key** to show/hide the color and symbol legend.
-5. Pick visible work overlays: mowing, spraying, or brush / POI / hazard cutting.
-6. Pick a zone before drawing, marking assets, or logging work.
-7. Draw O/M roads with freehand or point-to-point mode.
-8. Tag a trail as mowing, spraying, O/M road, and/or daily rider travel before saving.
-9. Add head gates, checks, valves, hazards, POIs, and washouts as asset markers. Leave **Needs brush / hazard cutting** checked when that point needs cut out.
-10. Use **Nearest O/M Entry** to find the closest saved O/M-road endpoint to your current GPS point or map center.
-11. Use **Plan Work** to build a rough mowing, spraying, or brush-cutting plan for the hours available.
+### Zone
+
+```json
+{
+  "id": "ride1",
+  "name": "Ride 1",
+  "notes": "optional notes",
+  "boundary": [
+    { "lat": 44.0, "lng": -103.0 },
+    { "lat": 44.1, "lng": -103.0 },
+    { "lat": 44.1, "lng": -103.1 }
+  ]
+}
+```
+
+Boundary is optional. Use three or more points to draw a polygon.
+
+### Trail / O/M road
+
+```json
+{
+  "id": "ride1-main-om-road",
+  "name": "Ride 1 Main O/M Road",
+  "zoneId": "ride1",
+  "overlays": { "mowing": true, "spraying": false },
+  "flags": { "omRoad": true, "dailyTravel": true },
+  "estimatedMinutes": 45,
+  "notes": "optional notes",
+  "points": [
+    { "lat": 44.0, "lng": -103.0 },
+    { "lat": 44.01, "lng": -103.02 }
+  ]
+}
+```
+
+Use at least two points. O/M road endpoints are used by **Nearest O/M Entry**.
+
+### Marker / POI / hazard
+
+```json
+{
+  "id": "headgate-101",
+  "name": "Head Gate 101",
+  "type": "head-gate",
+  "zoneId": "ride1",
+  "lat": 44.0,
+  "lng": -103.0,
+  "needsBrush": true,
+  "notes": "clear brush around gate"
+}
+```
+
+Marker types currently include `head-gate`, `valve`, `box`, `check`, `culvert`, `crossing`, `washout`, `spray-area`, `hazard`, `problem`, `poi`, and `note`.
+
+## Field workflow
+
+1. Open the field app.
+2. Use **Panel** to hide/show the field controls.
+3. Use **Key** to show/hide the color and symbol key.
+4. Select visible overlays.
+5. Use **Nearest O/M Entry** to find the closest saved O/M-road endpoint to your GPS point or map center.
+6. Use **Plan Work** to build a rough mowing, spraying, or brush-cutting plan for the hours available.
+7. Use daily operations buttons for visits, completions, work timers, and log notes.
 
 ## Logistics notes
 
@@ -85,26 +150,14 @@ The logistics helper is intentionally simple and local. It uses saved O/M-road e
 
 For best results:
 
-- Save road stretches with realistic estimated minutes.
+- Define road stretches with realistic estimated minutes.
 - Flag real O/M roads with **O/M road**.
 - Flag daily rider travel roads with **Daily rider travel**.
 - Log work time when finished so the average-time estimate improves.
 
-## Admin maintenance
-
-Use **Admin** from the top bar or open `/admin.html` directly.
-
-The admin page can:
-
-- Edit Last 10 saved type/title/zone/details.
-- Delete a single Last 10 saved entry.
-- Clear the whole Last 10 saved list.
-
-It does not delete map trails, assets, GPS tracks, work logs, or zone status. It only edits the local recent-saves list in the current browser/device.
-
 ## Important storage note
 
-All data is stored in browser local storage on that device. Another phone or PC will not automatically have the same data unless you import or recreate it there. Clearing browser data can remove saved tracks, trails, assets, logs, zone status, and recent entries.
+All data is stored in browser local storage on that device. Another phone or PC will not automatically have the same data unless you recreate it there or later add sync/import/export. Clearing browser data can remove definitions, tracks, logs, zone status, and recent entries.
 
 ## Spraying note
 
@@ -113,13 +166,13 @@ The app has a spraying overlay and spraying work type for local recall/logging. 
 ## File layout
 
 ```text
-index.html                  Main map app
-admin.html                  Local admin page for Last 10 saved
+index.html                  Locked field operations app
+admin.html                  Admin definition editor and recent-list maintenance
 manifest.webmanifest        PWA install metadata
 service-worker.js           Offline shell and tile cache
 assets/icon.svg             App icon
-src/app.js                  Map, GPS, storage, drawing, overlays, flags, logistics
-src/admin.js                Admin page local-storage editor
+src/app.js                  Field map, GPS, overlays, logistics, operations logging
+src/admin.js                Admin JSON definition editor and recent-list editor
 src/style.css               Mobile/desktop responsive layout
 ```
 
