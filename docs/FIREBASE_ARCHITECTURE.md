@@ -53,6 +53,8 @@ Field/Admin app
 - Work backlog
 - Last 10 / recent activity records
 - Offline sync state
+- Device-scoped backup ZIP metadata
+- Firebase Storage objects for cache backup ZIP files
 
 ## Firestore collection plan
 
@@ -102,6 +104,9 @@ Field/Admin app
   allowedOverlays
   canEditDefinitions
   canWriteActivity
+  canImportBackup
+  canExportBackup
+  canRestoreBackup
   lastSeenAt
 
 /orgs/{orgId}/activity/{activityId}
@@ -115,6 +120,21 @@ Field/Admin app
   durationMinutes
   notes
   syncSource
+
+/orgs/{orgId}/devices/{deviceId}/backups/{backupId}
+  deviceId
+  fileName
+  storagePath
+  createdAt
+  importedAt
+  createdBy
+  appVersion
+  schemaVersion
+  recordCounts
+  sha256
+  sizeBytes
+  restoreStatus
+  restoreNotes
 ```
 
 ## Device model
@@ -186,6 +206,116 @@ Example:
 
 Append-style activity makes offline merge conflicts much less dangerous.
 
+## Local cache ZIP backup and restore
+
+The app should support an explicit **Backup Local Cache** action and an explicit **Import Backup ZIP** action.
+
+This is separate from normal Firestore sync. Normal sync handles day-to-day records. ZIP backup is for disaster recovery, device replacement, offline archiving, and manual transfer.
+
+### Export backup ZIP
+
+A device with `canExportBackup` can create a ZIP of its local cache.
+
+The ZIP should include:
+
+```text
+manifest.json
+local-cache.json
+queued-writes.json
+activity.json
+recent.json
+definitions-snapshot.json
+device-profile.json
+attachments/
+```
+
+Recommended contents:
+
+- `manifest.json`: backup ID, app version, schema version, device ID, created timestamp, counts, and SHA/checksum metadata.
+- `local-cache.json`: complete local IndexedDB/localStorage cache state.
+- `queued-writes.json`: unsynced pending write queue.
+- `activity.json`: device-scoped activity records.
+- `recent.json`: Last 10 / recent operational history.
+- `definitions-snapshot.json`: copy of shared definitions at time of backup.
+- `device-profile.json`: device role/permissions snapshot.
+- `attachments/`: optional future photos, documents, or exported reports.
+
+### Firebase backup upload
+
+A device with `canExportBackup` can upload the ZIP to Firebase Storage under its assigned device ID.
+
+Storage path:
+
+```text
+/orgs/{orgId}/devices/{deviceId}/backups/{backupId}.zip
+```
+
+Firestore metadata path:
+
+```text
+/orgs/{orgId}/devices/{deviceId}/backups/{backupId}
+```
+
+The Firestore metadata stores file name, storage path, size, checksum, created time, app version, schema version, record counts, and restore status.
+
+### Import backup ZIP
+
+A device with `canImportBackup` can select a ZIP file and inspect it before applying it.
+
+Import flow:
+
+1. Read `manifest.json`.
+2. Verify schema version compatibility.
+3. Verify backup device ID.
+4. Show counts and warning summary before restore.
+5. Let user choose restore mode.
+6. Upload original ZIP to Firebase Storage if allowed.
+7. Write backup metadata to Firestore.
+8. Apply the chosen restore mode locally and/or to Firestore.
+
+### Restore modes
+
+Supported restore modes should be explicit:
+
+```text
+Preview only
+Restore local cache only
+Merge activity only
+Restore queued writes only
+Admin restore definitions snapshot
+Full device restore
+```
+
+Rules:
+
+- Field devices may restore local cache and their own activity only.
+- Field devices may not overwrite shared definitions.
+- Admin devices may restore shared definitions from `definitions-snapshot.json`, but only with confirmation.
+- Imported activity should keep original IDs to prevent duplicate records.
+- If a duplicate ID exists, keep the newest record or show a conflict report.
+- Queued writes should not be blindly replayed if they target disabled zones/trails/markers.
+
+### Backup conflict policy
+
+Activity is append-style and device-scoped, so activity restore should be a merge, not a destructive replace.
+
+Shared definitions are not append-style, so definition restore must be admin-only and treated as a dangerous operation.
+
+### Device replacement flow
+
+If a phone is replaced:
+
+1. Admin creates or reassigns a device ID.
+2. New phone signs in.
+3. Admin grants restore permission.
+4. New phone imports the old ZIP.
+5. App restores local cache and activity for that assigned device ID.
+6. App resumes normal Firestore sync.
+
+### Manual archive flow
+
+At the end of a week/month/season, an admin can create a local ZIP archive and upload it to Firebase Storage for historical preservation without applying it as a restore.
+
 ## Overlay/profile model
 
 Different devices may have different feature sets.
@@ -199,6 +329,9 @@ Examples:
   "role": "rider",
   "canEditDefinitions": false,
   "canWriteActivity": true,
+  "canImportBackup": true,
+  "canExportBackup": true,
+  "canRestoreBackup": false,
   "allowedOverlays": ["dailyTravel", "brush"],
   "assignedZones": ["ride6"]
 }
@@ -211,6 +344,9 @@ Examples:
   "role": "admin",
   "canEditDefinitions": true,
   "canWriteActivity": true,
+  "canImportBackup": true,
+  "canExportBackup": true,
+  "canRestoreBackup": true,
   "allowedOverlays": ["mowing", "spraying", "brush", "zones", "dailyTravel"]
 }
 ```
@@ -223,6 +359,7 @@ Examples:
 - Local storage
 - GitHub JSON sync for definitions
 - Local activity tracking
+- Manual/local backup concept only
 
 ### Phase 2: Firebase Hosting
 
@@ -240,6 +377,7 @@ Move these out of GitHub JSON/local storage and into Firestore:
 - devices
 - activity
 - backlog
+- backup metadata
 
 ### Phase 4: Auth and permissions
 
@@ -247,8 +385,18 @@ Move these out of GitHub JSON/local storage and into Firestore:
 - Gate admin tools behind permissions
 - Assign device profiles
 - Restrict field devices to their allowed overlays/zones
+- Gate backup import/export/restore with device permissions
 
-### Phase 5: Backend automation
+### Phase 5: Backup and restore implementation
+
+- Export local cache ZIP
+- Import local cache ZIP
+- Upload backup ZIP to Firebase Storage
+- Write backup metadata to Firestore
+- Restore local cache and device activity
+- Admin-only restore for shared definitions
+
+### Phase 6: Backend automation
 
 Optional later tools:
 
@@ -257,12 +405,16 @@ Optional later tools:
 - stale-work warnings
 - daily/weekly summaries
 - Firestore-to-GitHub snapshot backups
+- backup retention cleanup
 
 ## Hard rules
 
 - GitHub remains the source of code, not the live activity database.
 - Firestore becomes the source of live shared field data.
+- Firebase Storage stores uploaded ZIP backup objects.
 - Local storage remains an offline cache and pending-write queue.
 - Field devices never edit shared map definitions unless explicitly authorized.
+- Field devices never restore shared definitions.
 - Activity logs are append-style and device-scoped.
 - Admin definitions and field activity are separate data domains.
+- Backup ZIPs are device-scoped and permission-gated.
