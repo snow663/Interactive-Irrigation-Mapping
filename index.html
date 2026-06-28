@@ -34,10 +34,10 @@
         <div class="legend-row"><span class="line-swatch daily"></span><span>Daily rider travel flag</span></div>
         <div class="legend-row"><span class="line-swatch om"></span><span>O/M road flag</span></div>
         <div class="legend-row"><span class="point-swatch brush"></span><span>Brush / POI / hazard cutting point</span></div>
-        <div class="legend-row"><span class="point-swatch asset"></span><span>Other asset / note</span></div>
+        <div class="legend-row"><span class="point-swatch asset"></span><span>Other marker / note</span></div>
       </aside>
 
-      <aside id="controlPanel" class="panel" aria-label="GPS controls and readouts">
+      <aside id="controlPanel" class="panel" aria-label="Field operations panel">
         <section class="readout-grid">
           <div><span class="label">Latitude</span><strong id="latReadout">--</strong></div>
           <div><span class="label">Longitude</span><strong id="lngReadout">--</strong></div>
@@ -51,7 +51,6 @@
           <button id="gpsBtn" class="primary">Use My Location</button>
           <button id="followBtn">Follow: On</button>
           <button id="wakeBtn">Keep Screen Awake</button>
-          <button id="waypointBtn">Drop Waypoint</button>
           <button id="clearTrackBtn" class="danger">Clear GPS Track</button>
         </section>
 
@@ -61,6 +60,7 @@
             <label><input id="showMowingCheck" type="checkbox" checked /> Mowing</label>
             <label><input id="showSprayingCheck" type="checkbox" checked /> Spraying</label>
             <label><input id="showBrushCheck" type="checkbox" checked /> Brush / POI / hazard cutting</label>
+            <label><input id="showZonesCheck" type="checkbox" checked /> Zone boundaries</label>
           </div>
         </section>
 
@@ -69,46 +69,38 @@
           <div class="field-grid">
             <label>Available hours<input id="availableHoursInput" type="number" min="0.5" max="14" step="0.5" value="6" /></label>
             <label>Plan type
-              <select id="planTypeSelect"><option value="mowing">Mowing</option><option value="spraying">Spraying</option><option value="brush">Brush / POI / hazard cutting</option></select>
+              <select id="planTypeSelect">
+                <option value="mowing">Mowing</option>
+                <option value="spraying">Spraying</option>
+                <option value="brush">Brush / POI / hazard cutting</option>
+              </select>
             </label>
           </div>
           <div class="controls logistics-controls"><button id="nearestOmBtn">Nearest O/M Entry</button><button id="planDayBtn" class="primary">Plan Work</button></div>
           <div id="logisticsOutput" class="logistics-output">Use GPS or pan the map, then run a logistics check.</div>
         </section>
 
-        <section class="ops-panel" aria-label="Irrigation operations tracking">
-          <h2>Operations tracker</h2>
+        <section class="ops-panel" aria-label="Daily field operations">
+          <h2>Daily operations</h2>
+          <p class="locked-note">Map definitions are locked here. Create or edit zones, trails, and markers from Admin.</p>
           <div class="field-grid">
             <label>Zone<select id="zoneSelect"></select></label>
             <label>Trail / road stretch<select id="trailSelect"></select></label>
-            <label>Asset type<select id="assetTypeSelect"></select></label>
             <label>Work type<select id="workTypeSelect"></select></label>
-            <label class="check-label"><input id="assetNeedsBrushCheck" type="checkbox" checked /> Needs brush / hazard cutting</label>
           </div>
           <div id="zoneSummary" class="zone-summary">Select a zone to see status.</div>
           <div class="controls ops-controls">
-            <button id="addAssetBtn">Add Asset Marker</button><button id="markVisitedBtn">Mark Zone Visited</button><button id="markCompleteBtn" class="primary">Mark Zone Complete</button>
-            <button id="startWorkBtn">Start Work Timer</button><button id="stopWorkBtn" class="primary" disabled>Stop / Save Work</button><button id="addLogBtn">Add Log Note</button>
+            <button id="markVisitedBtn">Mark Zone Visited</button>
+            <button id="markCompleteBtn" class="primary">Mark Zone Complete</button>
+            <button id="startWorkBtn">Start Work Timer</button>
+            <button id="stopWorkBtn" class="primary" disabled>Stop / Save Work</button>
+            <button id="addLogBtn">Add Log Note</button>
           </div>
         </section>
 
         <section class="recent-panel" aria-label="Last 10 saved records"><h2>Last 10 saved</h2><ol id="recentList" class="recent-list"></ol></section>
 
-        <section class="draw-panel" aria-label="Manual trail drawing tools">
-          <h2>Manual trail marking</h2>
-          <p id="drawHelp">Draw trails without driving them. Use freehand to sketch, or point mode to tap corners.</p>
-          <div class="trail-tags">
-            <h3>New trail work overlays</h3>
-            <div class="check-grid"><label><input id="trailMowingCheck" type="checkbox" checked /> Mowing</label><label><input id="trailSprayingCheck" type="checkbox" /> Spraying</label></div>
-            <h3>New trail flags</h3>
-            <div class="check-grid"><label><input id="trailOmRoadCheck" type="checkbox" checked /> O/M road</label><label><input id="trailDailyTravelCheck" type="checkbox" /> Daily rider travel</label></div>
-          </div>
-          <div class="controls draw-controls"><button id="freehandBtn">Freehand Draw</button><button id="pointDrawBtn">Point-to-Point</button><button id="finishDrawBtn" class="primary" disabled>Save Trail</button><button id="undoDrawBtn" disabled>Undo Point</button><button id="cancelDrawBtn" disabled>Cancel Draw</button><button id="clearDrawnBtn" class="danger">Clear Drawn Trails</button></div>
-        </section>
-
-        <section class="controls compact"><label class="file-button">Import GeoJSON<input id="geojsonInput" type="file" accept=".geojson,.json,application/geo+json,application/json" /></label></section>
-
-        <footer class="panel-footer"><span id="trackCount">0 GPS points</span><span id="drawnCount">0 drawn trails</span><span id="assetCount">0 assets</span><span id="logCount">0 logs</span><span id="waypointCount">0 waypoints</span></footer>
+        <footer class="panel-footer"><span id="trackCount">0 GPS points</span><span id="drawnCount">0 trails</span><span id="assetCount">0 markers</span><span id="logCount">0 logs</span></footer>
       </aside>
     </main>
 
