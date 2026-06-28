@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "updatedAt": "2026-06-27T00:00:00.000Z",
+  "zones": [
+    { "id": "ride1", "name": "Ride 1", "notes": "", "boundary": [] },
+    { "id": "ride2", "name": "Ride 2", "notes": "", "boundary": [] },
+    { "id": "ride4", "name": "Ride 4", "notes": "", "boundary": [] },
+    { "id": "ride5", "name": "Ride 5", "notes": "", "boundary": [] },
+    { "id": "ride6", "name": "Ride 6", "notes": "", "boundary": [] },
+    { "id": "ride7", "name": "Ride 7", "notes": "", "boundary": [] },
+    { "id": "ride8", "name": "Ride 8", "notes": "", "boundary": [] },
+    { "id": "ride10", "name": "Ride 10", "notes": "", "boundary": [] }
+  ],
+  "drawnTrails": [],
+  "assets": []
+}
