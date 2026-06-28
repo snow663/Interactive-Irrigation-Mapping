@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'interactive-irrigation-map-v10';
+const CACHE_VERSION = 'interactive-irrigation-map-v11';
 const APP_SHELL = [
   './',
   './index.html',
@@ -6,6 +6,7 @@ const APP_SHELL = [
   './manifest.webmanifest',
   './assets/icon.svg',
   './data/definitions.json',
+  './src/map-extent.js',
   './src/field-sync.js',
   './src/app.js',
   './src/admin.js',
