@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'interactive-irrigation-map-v14';
+const CACHE_VERSION = 'interactive-irrigation-map-v15';
 const APP_SHELL = [
   './',
   './index.html',
@@ -8,6 +8,7 @@ const APP_SHELL = [
   './data/definitions.json',
   './src/map-extent.js',
   './src/field-sync.js',
+  './src/admin-backup.js',
   './src/app.js',
   './src/admin.js',
   './src/style.css'
@@ -42,7 +43,7 @@ function isAdminScript(url) {
 }
 
 function patchAdminScript(text) {
-  return text
+  const patched = text
     .replace(
       "L.polygon(zone.boundary.map((p) => [p.lat, p.lng]), { color: coverage ? '#facc15' : '#38bdf8',",
       "L.polygon(zone.boundary.map((p) => [p.lat, p.lng]), { interactive: !activeTool, bubblingMouseEvents: true, color: coverage ? '#facc15' : '#38bdf8',"
@@ -55,6 +56,7 @@ function patchAdminScript(text) {
       "L.circleMarker([marker.lat, marker.lng], { radius:",
       "L.circleMarker([marker.lat, marker.lng], { interactive: !activeTool, bubblingMouseEvents: true, radius:"
     );
+  return `${patched}\nimport './admin-backup.js';\n`;
 }
 
 async function patchedAdminScript(request) {
