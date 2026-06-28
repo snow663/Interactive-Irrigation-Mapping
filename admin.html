@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0f172a" />
     <title>Irrigation Map Admin</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
     <link rel="stylesheet" href="./src/style.css" />
   </head>
   <body class="admin-body">
@@ -18,8 +19,80 @@
       </header>
 
       <section class="admin-card">
-        <h2>Definition editor</h2>
-        <p>Field mode cannot create, edit, or delete zones, trails, or markers. Edit them here, then return to the map.</p>
+        <h2>Admin map editor</h2>
+        <p>Use this map to define zone boundaries, O/M roads, trails, markers, POIs, and hazards. Field mode can view and log against these definitions, but cannot modify them.</p>
+        <div class="controls admin-map-tools">
+          <button id="drawZoneBtn">Draw Zone Boundary</button>
+          <button id="drawTrailBtn">Draw Trail / Road</button>
+          <button id="dropMarkerBtn">Drop Marker</button>
+          <button id="undoAdminPointBtn">Undo Point</button>
+          <button id="clearAdminDraftBtn" class="danger">Clear Draft</button>
+        </div>
+        <div id="adminMap" class="admin-map" aria-label="Admin definition map"></div>
+        <div id="adminDrawHelp" class="logistics-output">Select a tool, then click the map.</div>
+      </section>
+
+      <section class="admin-card">
+        <h2>Zones</h2>
+        <div class="field-grid">
+          <label>Existing zone<select id="zoneAdminSelect"></select></label>
+          <label>Zone ID<input id="zoneIdInput" placeholder="ride1" /></label>
+          <label>Zone name<input id="zoneNameInput" placeholder="Ride 1" /></label>
+          <label>Notes<input id="zoneNotesInput" placeholder="optional notes" /></label>
+        </div>
+        <div class="controls">
+          <button id="loadZoneBtn">Load Zone</button>
+          <button id="saveZoneBtn" class="primary">Save Zone</button>
+          <button id="deleteZoneBtn" class="danger">Delete Zone</button>
+        </div>
+      </section>
+
+      <section class="admin-card">
+        <h2>Trails / O/M roads</h2>
+        <div class="field-grid">
+          <label>Existing trail<select id="trailAdminSelect"></select></label>
+          <label>Trail ID<input id="trailIdInput" placeholder="ride1-main-road" /></label>
+          <label>Trail name<input id="trailNameInput" placeholder="Ride 1 Main O/M Road" /></label>
+          <label>Zone<select id="trailZoneSelect"></select></label>
+          <label>Estimated minutes<input id="trailMinutesInput" type="number" min="0" step="1" /></label>
+          <label>Notes<input id="trailNotesInput" placeholder="optional notes" /></label>
+        </div>
+        <div class="check-grid admin-checks">
+          <label><input id="trailMowingAdminCheck" type="checkbox" checked /> Mowing overlay</label>
+          <label><input id="trailSprayingAdminCheck" type="checkbox" /> Spraying overlay</label>
+          <label><input id="trailOmAdminCheck" type="checkbox" checked /> O/M road</label>
+          <label><input id="trailDailyAdminCheck" type="checkbox" /> Daily rider travel</label>
+        </div>
+        <div class="controls">
+          <button id="loadTrailBtn">Load Trail</button>
+          <button id="saveTrailBtn" class="primary">Save Trail</button>
+          <button id="deleteTrailBtn" class="danger">Delete Trail</button>
+        </div>
+      </section>
+
+      <section class="admin-card">
+        <h2>Markers / POIs / hazards</h2>
+        <div class="field-grid">
+          <label>Existing marker<select id="markerAdminSelect"></select></label>
+          <label>Marker ID<input id="markerIdInput" placeholder="headgate-101" /></label>
+          <label>Marker name<input id="markerNameInput" placeholder="Head Gate 101" /></label>
+          <label>Type<select id="markerTypeSelect"></select></label>
+          <label>Zone<select id="markerZoneSelect"></select></label>
+          <label>Latitude<input id="markerLatInput" type="number" step="0.000001" /></label>
+          <label>Longitude<input id="markerLngInput" type="number" step="0.000001" /></label>
+          <label>Notes<input id="markerNotesInput" placeholder="optional notes" /></label>
+          <label class="check-label"><input id="markerBrushCheck" type="checkbox" checked /> Needs brush / POI / hazard cutting</label>
+        </div>
+        <div class="controls">
+          <button id="loadMarkerBtn">Load Marker</button>
+          <button id="saveMarkerBtn" class="primary">Save Marker</button>
+          <button id="deleteMarkerBtn" class="danger">Delete Marker</button>
+        </div>
+      </section>
+
+      <section class="admin-card">
+        <h2>Definition JSON backup editor</h2>
+        <p>These boxes mirror the map editor. Use them for bulk corrections or copy/paste work. Press Save Definitions after editing.</p>
         <div id="definitionStatus" class="logistics-output">Loading local definitions...</div>
         <div class="controls">
           <button id="saveDefinitionsBtn" class="primary">Save Definitions</button>
@@ -28,20 +101,17 @@
       </section>
 
       <section class="admin-card">
-        <h2>Zones</h2>
-        <p>Each zone may include an optional boundary. Boundary format is an array of `{ "lat": 44.0, "lng": -103.0 }` points.</p>
+        <h2>Zones JSON</h2>
         <textarea id="zonesJson" spellcheck="false"></textarea>
       </section>
 
       <section class="admin-card">
-        <h2>Trails / O/M roads</h2>
-        <p>Define road stretches here. Points must contain at least two `{ "lat", "lng" }` entries. Use flags for O/M road and daily rider travel.</p>
+        <h2>Trails / O/M roads JSON</h2>
         <textarea id="trailsJson" spellcheck="false"></textarea>
       </section>
 
       <section class="admin-card">
-        <h2>Markers / POIs / hazards</h2>
-        <p>Define head gates, checks, valves, hazards, POIs, washouts, and other points. Set `needsBrush` true for the brush / POI / hazard cutting overlay.</p>
+        <h2>Markers / POIs / hazards JSON</h2>
         <textarea id="markersJson" spellcheck="false"></textarea>
       </section>
 
@@ -62,6 +132,7 @@
       </section>
     </main>
 
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     <script type="module" src="./src/admin.js"></script>
   </body>
 </html>
