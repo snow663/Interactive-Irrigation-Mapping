@@ -159,7 +159,7 @@ button.ghost { background: rgba(15, 23, 42, 0.7); }
 }
 .controls.compact { grid-template-columns: 1fr; }
 
-.ops-panel, .draw-panel, .recent-panel {
+.ops-panel, .draw-panel, .recent-panel, .overlay-panel {
   margin-top: 0.65rem;
   padding: 0.65rem;
   border-radius: 0.9rem;
@@ -167,6 +167,10 @@ button.ghost { background: rgba(15, 23, 42, 0.7); }
 .ops-panel {
   border: 1px solid rgba(96, 165, 250, 0.32);
   background: rgba(30, 64, 175, 0.2);
+}
+.overlay-panel {
+  border: 1px solid rgba(20, 184, 166, 0.36);
+  background: rgba(19, 78, 74, 0.24);
 }
 .draw-panel {
   border: 1px solid rgba(34, 197, 94, 0.32);
@@ -176,10 +180,17 @@ button.ghost { background: rgba(15, 23, 42, 0.7); }
   border: 1px solid rgba(250, 204, 21, 0.34);
   background: rgba(113, 63, 18, 0.2);
 }
-.ops-panel h2, .draw-panel h2, .recent-panel h2 {
+.ops-panel h2, .draw-panel h2, .recent-panel h2, .overlay-panel h2 {
   margin: 0 0 0.45rem;
   font-size: 0.88rem;
   letter-spacing: 0.02em;
+}
+.trail-tags h3 {
+  margin: 0.55rem 0 0.35rem;
+  font-size: 0.75rem;
+  color: #bbf7d0;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 .draw-panel p {
   margin: 0 0 0.45rem;
@@ -191,6 +202,31 @@ button.ghost { background: rgba(15, 23, 42, 0.7); }
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.48rem;
+}
+.check-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.38rem;
+}
+.check-grid label, .check-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 42px;
+  margin: 0;
+  padding: 0.48rem 0.55rem;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 0.7rem;
+  background: rgba(15, 23, 42, 0.56);
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.78rem;
+}
+.check-grid input, .check-label input {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: #22c55e;
 }
 .zone-summary {
   display: grid;
@@ -292,7 +328,7 @@ button.ghost { background: rgba(15, 23, 42, 0.7); }
   .panel { left: auto; right: 0.9rem; width: 27rem; max-height: calc(100vh - 6rem); }
 }
 @media (max-width: 540px) {
-  .field-grid, .zone-summary { grid-template-columns: 1fr; }
+  .field-grid, .zone-summary, .check-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 470px) {
   .readout-grid { grid-template-columns: repeat(2, 1fr); }
