@@ -13,12 +13,14 @@ Portable web-based GPS and operations mapping for Android field use. It is a sta
 - Manual trail drawing without driving the trail.
 - Freehand draw mode for sketching trails by dragging on the map.
 - Point-to-point draw mode for tapping corners, bends, and intersections.
+- Selectable work overlays for **Mowing**, **Spraying**, **Daily Rider Travel**, and **Gate/check/valve clearing**.
+- A single road/stretch can belong to multiple overlays, such as mowing + spraying + daily rider travel.
 - Ditch rider zones: Ride 1, Ride 2, Ride 4, Ride 5, Ride 6, Ride 7, Ride 8, Ride 10.
 - Trail / road stretch assignment to a zone.
 - Estimated minutes per drawn trail / road stretch.
-- Work timer for road clearing, spraying, scouting, repairs, ditch rider support, drive time, and other work.
+- Work timer for road clearing, mowing, spraying, gate/check/valve clearing, scouting, repairs, ditch rider support, drive time, and other work.
 - Zone visited and zone completed tracking.
-- Zone summary showing last visited, last completed, completion count, asset count, trail count, log count, total logged time, and average job time.
+- Zone summary showing last visited, last completed, completion count, mowing stretches, spray stretches, daily rider travel stretches, clearing points, asset count, log count, total logged time, and average job time.
 - Asset markers for head gates, valves, boxes, checks, culverts, crossings, washouts, spray areas, problem spots, and notes.
 - Named waypoint drops.
 - Saved GPS track, drawn trails, assets, logs, zone status, and waypoints in browser storage.
@@ -48,9 +50,54 @@ https://snow663.github.io/Interactive-Irrigation-Mapping/
 2. Press **Use My Location**.
 3. Allow location permission.
 4. Use **Follow: On** while driving or walking.
-5. Use **Drop Waypoint** for quick one-off notes.
-6. Use **Add Asset Marker** for known infrastructure like gates, valves, boxes, checks, culverts, crossings, washouts, spray areas, and problem spots.
-7. Use the **Last 10 saved** panel for quick recall of the most recent saved trails, assets, waypoints, work logs, visits, and completions.
+5. Toggle visible overlays depending on the day: mowing, spraying, daily rider travel, or gate/check/valve clearing.
+6. Use **Drop Waypoint** for quick one-off notes.
+7. Use **Add Asset Marker** for known infrastructure like gates, valves, boxes, checks, culverts, crossings, washouts, spray areas, and problem spots.
+8. Use the **Last 10 saved** panel for quick recall of the most recent saved trails, assets, waypoints, work logs, visits, and completions.
+
+## Work overlay workflow
+
+### Visible overlays
+
+Use the **Visible overlays** panel to show or hide:
+
+```text
+Mowing
+Spraying
+Daily rider travel
+Gate/check/valve clearing
+```
+
+Mowing and spraying are independent route overlays. You can show either one or both to see where they overlap.
+
+Daily rider travel is for the service-road stretches the ditch riders use every day. Use it when you only have enough time to mow or check the daily driven sections.
+
+Gate/check/valve clearing is separate because those are point jobs, not road-length jobs. This keeps structure-clearing days visually separate from mowing and spraying days.
+
+### Saving road / trail stretches
+
+1. Pick the correct **Zone**.
+2. Under **New trail overlays**, check the tags that apply:
+   - **Mowing**
+   - **Spraying**
+   - **Daily rider travel**
+3. Draw the road or access stretch with **Freehand Draw** or **Point-to-Point**.
+4. Press **Save Trail**.
+5. Name the road/stretch.
+6. Enter the estimated minutes it should take to clear, drive, spray, inspect, or work.
+
+A stretch can be saved as mowing only, spraying only, daily rider travel only, or any combination.
+
+### Marking clearing points
+
+1. Select the **Zone**.
+2. Select **Head gate**, **Check**, or **Valve** as the asset type.
+3. Leave **Needs clearing** checked.
+4. Pan the map to the location or use your current GPS point.
+5. Press **Add Asset Marker**.
+6. Name it and add notes.
+
+Those markers appear in the gate/check/valve clearing overlay. Turn that overlay on when the day is dedicated to clearing out structures.
 
 ## Operations tracker workflow
 
@@ -63,16 +110,6 @@ Ride 1, Ride 2, Ride 4, Ride 5, Ride 6, Ride 7, Ride 8, Ride 10
 ```
 
 Ride 3 and Ride 9 are intentionally omitted for now because the current field description says those are not used.
-
-### Road / trail stretches
-
-1. Pick the correct **Zone**.
-2. Draw the road or access stretch with **Freehand Draw** or **Point-to-Point**.
-3. Press **Save Trail**.
-4. Name the road/stretch.
-5. Enter the estimated minutes it should take to clear, drive, spray, inspect, or work.
-
-Saved trails appear in the **Trail / road stretch** selector for that zone. When you log timed work against that stretch, the map popup will show estimated time, average actual time, and last worked date.
 
 ### Work timer
 
@@ -92,19 +129,9 @@ This creates an internal log entry with start time, stop time, duration, zone, t
 - The summary panel shows how long it has been since the zone was visited or completed.
 - Each visit/completion is also added to the **Last 10 saved** list.
 
-### Asset markers
-
-1. Select the **Zone**.
-2. Select the **Asset type**.
-3. Pan the map to the location or use your current GPS point.
-4. Press **Add Asset Marker**.
-5. Name it and add notes.
-
-Asset marker types include head gate, valve, box, check, culvert, crossing, washout, spray area, problem spot, and note.
-
 ## Last 10 saved
 
-The app no longer exposes export buttons. Instead, it keeps a rolling visible list of the last 10 saved records inside the portable browser app.
+The app keeps a rolling visible list of the last 10 saved records inside the portable browser app.
 
 Records currently added to the list:
 
@@ -169,7 +196,7 @@ index.html                  App shell
 manifest.webmanifest        PWA install metadata
 service-worker.js           Offline shell and tile cache
 assets/icon.svg             App icon
-src/app.js                  Map, GPS, storage, drawing, operations, import, recent list, UI logic
+src/app.js                  Map, GPS, storage, drawing, operations, overlays, import, recent list, UI logic
 src/style.css               Mobile-first layout
 ```
 
