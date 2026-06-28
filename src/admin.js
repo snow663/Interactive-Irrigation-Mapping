@@ -37,12 +37,19 @@ let activeTool = null;
 let draftPoints = [];
 let definitionSha = '';
 
-const adminMap = L.map('adminMap', { preferCanvas: true }).setView(DEFAULT_CENTER, 12);
+const adminMap = L.map('adminMap', { preferCanvas: true, zoomSnap: 0.25, tapTolerance: 24 }).setView(DEFAULT_CENTER, 12);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 20, attribution: '&copy; OpenStreetMap contributors' }).addTo(adminMap);
 const zoneLayer = L.layerGroup().addTo(adminMap);
 const trailLayer = L.layerGroup().addTo(adminMap);
 const markerLayer = L.layerGroup().addTo(adminMap);
 const draftLayer = L.layerGroup().addTo(adminMap);
+
+const handleIcon = (index) => L.divIcon({
+  className: 'admin-draft-handle-icon',
+  html: `<span>${index + 1}</span>`,
+  iconSize: [34, 34],
+  iconAnchor: [17, 17]
+});
 
 function safeParse(json, fallback) { try { return JSON.parse(json) ?? fallback; } catch { return fallback; } }
 function escapeHtml(value) { return String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;'); }
@@ -54,7 +61,7 @@ function normalizePointList(points = []) { return points.map(normalizePoint).fil
 function isCoverageZone(zone) { return zone?.id === COVERAGE_ZONE_ID || zone?.type === 'coverage' || zone?.role === 'map-coverage'; }
 function workZones() { return state.zones.filter((zone) => !isCoverageZone(zone)); }
 function normalizeZones(zones = []) {
-  const source = zones.length ? zones : [DEFAULT_COVERAGE_ZONE, ...DEFAULT_WORK_ZONES.map(([id,name]) => ({ id, name, notes: '', boundary: [] }))];
+  const source = zones.length ? zones : [DEFAULT_COVERAGE_ZONE, ...DEFAULT_WORK_ZONES.map(([id,name]) => ({ id, name, type: '', notes: '', boundary: [] }))];
   const seen = new Set();
   const normalized = source.map((z, i) => {
     const type = isCoverageZone(z) ? 'coverage' : String(z.type || z.role || '');
@@ -139,18 +146,31 @@ function drawDefinitions() {
   for (const marker of state.assets) L.circleMarker([marker.lat, marker.lng], { radius: marker.needsBrush ? 9 : 6, weight: 3, color: marker.needsBrush ? '#ef4444' : '#facc15', fillColor: marker.needsBrush ? '#f97316' : '#facc15', fillOpacity: 0.85 }).bindPopup(`<strong>${escapeHtml(marker.name)}</strong><br>${escapeHtml(marker.type)}<br>${escapeHtml(zoneLabel(marker.zoneId))}`).addTo(markerLayer);
   drawDraft();
 }
+function updateDraftPoint(index, latLng) {
+  draftPoints[index] = pointFromLatLng(latLng);
+  drawDraft();
+}
+function drawDraftHandles() {
+  draftPoints.forEach((point, index) => {
+    const marker = L.marker([point.lat, point.lng], { icon: handleIcon(index), draggable: true, keyboard: false, title: `Point ${index + 1}` });
+    marker.on('dragstart', () => adminMap.dragging.disable());
+    marker.on('dragend', (event) => { adminMap.dragging.enable(); updateDraftPoint(index, event.target.getLatLng()); });
+    marker.on('click', (event) => L.DomEvent.stop(event));
+    marker.addTo(draftLayer);
+  });
+}
 function drawDraft() {
   draftLayer.clearLayers();
   if (activeTool === 'marker') {
     const lat = Number(el.markerLatInput.value), lng = Number(el.markerLngInput.value);
-    if (Number.isFinite(lat) && Number.isFinite(lng)) L.circleMarker([lat, lng], { radius: 11, color: '#38bdf8', fillColor: '#38bdf8', fillOpacity: 0.55 }).addTo(draftLayer);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) L.circleMarker([lat, lng], { radius: 14, color: '#38bdf8', fillColor: '#38bdf8', fillOpacity: 0.55 }).addTo(draftLayer);
     return;
   }
   if (!draftPoints.length) return;
   const latLngs = draftPoints.map((p) => [p.lat, p.lng]);
-  if (activeTool === 'zone') L.polygon(latLngs, { color: '#facc15', weight: 3, fillOpacity: 0.08 }).addTo(draftLayer);
-  else L.polyline(latLngs, { color: '#facc15', weight: 5, dashArray: '8 6' }).addTo(draftLayer);
-  for (const point of draftPoints) L.circleMarker([point.lat, point.lng], { radius: 4, color: '#facc15', fillColor: '#facc15', fillOpacity: 0.95 }).addTo(draftLayer);
+  if (activeTool === 'zone') L.polygon(latLngs, { color: '#facc15', weight: 4, fillOpacity: 0.08 }).addTo(draftLayer);
+  else L.polyline(latLngs, { color: '#facc15', weight: 6, dashArray: '8 6' }).addTo(draftLayer);
+  drawDraftHandles();
 }
 function fitDefinedBounds() {
   const coverage = state.zones.find(isCoverageZone);
@@ -165,7 +185,7 @@ function setActiveTool(tool, { clearDraft = true, toggle = false } = {}) {
   el.drawZoneBtn.classList.toggle('active', activeTool === 'zone');
   el.drawTrailBtn.classList.toggle('active', activeTool === 'trail');
   el.dropMarkerBtn.classList.toggle('active', activeTool === 'marker');
-  el.adminDrawHelp.textContent = activeTool === 'zone' ? 'Click boundary corners around the selected/new zone, then Save Zone. Select “Map Coverage Boundary” to edit the outer map limit.' : activeTool === 'trail' ? 'Click road/trail points in order, then Save Trail.' : activeTool === 'marker' ? 'Click the marker location, then Save Marker.' : 'Select a tool, then click the map.';
+  el.adminDrawHelp.textContent = activeTool === 'zone' ? 'Tap the map to add boundary points. Drag numbered handles to resize. Undo removes the last point. Save Zone when finished. Select “Map Coverage Boundary” to edit the outer map limit.' : activeTool === 'trail' ? 'Tap the map to add road points. Drag numbered handles to adjust the road. Undo removes the last point. Save Trail when finished.' : activeTool === 'marker' ? 'Tap the marker location, then Save Marker.' : 'Select a tool, then tap the map.';
   drawDefinitions();
 }
 adminMap.on('click', (event) => {
@@ -228,7 +248,7 @@ function loadMarker(marker = selectedMarker()) {
 }
 function saveMarker() {
   const lat = Number(el.markerLatInput.value), lng = Number(el.markerLngInput.value);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return alert('A marker needs latitude and longitude. Use Drop Marker and click the map, or type coordinates.');
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return alert('A marker needs latitude and longitude. Use Drop Marker and tap the map, or type coordinates.');
   const existingId = el.markerAdminSelect.value;
   const id = slug(el.markerIdInput.value || el.markerNameInput.value, `marker-${state.assets.length + 1}`);
   const marker = { id, name: el.markerNameInput.value.trim() || id, type: el.markerTypeSelect.value || 'note', zoneId: el.markerZoneSelect.value || workZones()[0]?.id || 'ride1', lat, lng, needsBrush: el.markerBrushCheck.checked, notes: el.markerNotesInput.value.trim() };
