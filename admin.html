@@ -39,16 +39,16 @@
 
       <section class="admin-card">
         <h2>Admin map editor</h2>
-        <p>Use this map to define zone boundaries, O/M roads, trails, markers, POIs, and hazards. Field mode can view and log against these definitions, but cannot modify them.</p>
+        <p>Touch workflow: load an existing zone/trail, tap the map to add points, drag the large numbered handles to resize, then save. Select <strong>Map Coverage Boundary</strong> under Zones to set the outer field-map pan/zoom limit.</p>
         <div class="controls admin-map-tools">
-          <button id="drawZoneBtn">Draw Zone Boundary</button>
-          <button id="drawTrailBtn">Draw Trail / Road</button>
+          <button id="drawZoneBtn">Edit Zone Boundary</button>
+          <button id="drawTrailBtn">Edit Trail / Road</button>
           <button id="dropMarkerBtn">Drop Marker</button>
           <button id="undoAdminPointBtn">Undo Point</button>
           <button id="clearAdminDraftBtn" class="danger">Clear Draft</button>
         </div>
         <div id="adminMap" class="admin-map" aria-label="Admin definition map"></div>
-        <div id="adminDrawHelp" class="logistics-output">Select a tool, then click the map.</div>
+        <div id="adminDrawHelp" class="logistics-output">Select a tool, then tap the map.</div>
       </section>
 
       <section class="admin-card">
