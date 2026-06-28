@@ -6,12 +6,12 @@
       "id": "map-coverage",
       "name": "Map Coverage Boundary",
       "type": "coverage",
-      "notes": "Large selectable admin-defined boundary containing all ride zones. Field map pan/zoom is constrained to this boundary.",
+      "notes": "Large selectable admin zone that defines the usable map coverage. Field map panning/zooming is constrained to this boundary.",
       "boundary": [
-        { "lat": 44.900000, "lng": -104.250000 },
-        { "lat": 44.900000, "lng": -103.450000 },
-        { "lat": 44.450000, "lng": -103.450000 },
-        { "lat": 44.450000, "lng": -104.250000 }
+        { "lat": 45.200000, "lng": -104.350000 },
+        { "lat": 45.200000, "lng": -102.950000 },
+        { "lat": 44.050000, "lng": -102.950000 },
+        { "lat": 44.050000, "lng": -104.350000 }
       ]
     },
     { "id": "ride1", "name": "Ride 1", "notes": "", "boundary": [] },
