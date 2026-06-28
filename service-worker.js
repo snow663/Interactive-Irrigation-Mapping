@@ -1,10 +1,12 @@
-const CACHE_VERSION = 'interactive-irrigation-map-v7';
+const CACHE_VERSION = 'interactive-irrigation-map-v8';
 const APP_SHELL = [
   './',
   './index.html',
   './admin.html',
   './manifest.webmanifest',
   './assets/icon.svg',
+  './data/definitions.json',
+  './src/field-sync.js',
   './src/app.js',
   './src/admin.js',
   './src/style.css'
@@ -28,6 +30,10 @@ self.addEventListener('activate', (event) => {
 
 function isMapTile(url) {
   return url.hostname.includes('tile.openstreetmap.org') || url.hostname.includes('arcgisonline.com');
+}
+
+function isDefinitionsFile(url) {
+  return url.pathname.endsWith('/data/definitions.json');
 }
 
 async function cacheFirst(request) {
@@ -67,6 +73,10 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
   if (request.mode === 'navigate') {
+    event.respondWith(networkFirst(request));
+    return;
+  }
+  if (isDefinitionsFile(url)) {
     event.respondWith(networkFirst(request));
     return;
   }
