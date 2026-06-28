@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f172a" />
+    <title>Irrigation Map Admin</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body class="admin-body">
+    <main class="admin-shell">
+      <header class="admin-header">
+        <div>
+          <h1>Admin Maintenance</h1>
+          <p>Edit or remove incorrect Last 10 saved entries stored on this device.</p>
+        </div>
+        <a class="ghost link-button" href="./index.html">Back to map</a>
+      </header>
+
+      <section class="admin-card">
+        <h2>Last 10 saved</h2>
+        <div id="adminStatus" class="logistics-output">Loading local records...</div>
+        <div id="recentAdminList" class="admin-list"></div>
+      </section>
+
+      <section class="admin-card">
+        <h2>Local storage maintenance</h2>
+        <p>This only affects the browser/device you are using. It does not change another phone or computer.</p>
+        <div class="controls">
+          <button id="clearRecentBtn" class="danger">Clear Last 10 List</button>
+          <button id="reloadAdminBtn">Reload</button>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="./src/admin.js"></script>
+  </body>
+</html>
