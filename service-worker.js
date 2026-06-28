@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'interactive-irrigation-map-v13';
+const CACHE_VERSION = 'interactive-irrigation-map-v14';
 const APP_SHELL = [
   './',
   './index.html',
@@ -35,6 +35,40 @@ function isMapTile(url) {
 
 function isDefinitionsFile(url) {
   return url.pathname.endsWith('/data/definitions.json');
+}
+
+function isAdminScript(url) {
+  return url.pathname.endsWith('/src/admin.js');
+}
+
+function patchAdminScript(text) {
+  return text
+    .replace(
+      "L.polygon(zone.boundary.map((p) => [p.lat, p.lng]), { color: coverage ? '#facc15' : '#38bdf8',",
+      "L.polygon(zone.boundary.map((p) => [p.lat, p.lng]), { interactive: !activeTool, bubblingMouseEvents: true, color: coverage ? '#facc15' : '#38bdf8',"
+    )
+    .replace(
+      "L.polyline(trail.points.map((p) => [p.lat, p.lng]), { color,",
+      "L.polyline(trail.points.map((p) => [p.lat, p.lng]), { interactive: !activeTool, bubblingMouseEvents: true, color,"
+    )
+    .replace(
+      "L.circleMarker([marker.lat, marker.lng], { radius:",
+      "L.circleMarker([marker.lat, marker.lng], { interactive: !activeTool, bubblingMouseEvents: true, radius:"
+    );
+}
+
+async function patchedAdminScript(request) {
+  const cache = await caches.open(CACHE_VERSION);
+  let response;
+  try {
+    response = await fetch(request);
+    cache.put(request, response.clone()).catch(() => {});
+  } catch {
+    response = await cache.match(request);
+  }
+  if (!response) return new Response('', { status: 404 });
+  const text = patchAdminScript(await response.text());
+  return new Response(text, { headers: { 'Content-Type': 'application/javascript; charset=utf-8' } });
 }
 
 async function cacheFirst(request) {
@@ -75,6 +109,10 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (request.mode === 'navigate') {
     event.respondWith(networkFirst(request));
+    return;
+  }
+  if (isAdminScript(url)) {
+    event.respondWith(patchedAdminScript(request));
     return;
   }
   if (isDefinitionsFile(url)) {
