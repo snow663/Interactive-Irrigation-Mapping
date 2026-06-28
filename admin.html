@@ -12,13 +12,42 @@
       <header class="admin-header">
         <div>
           <h1>Admin Maintenance</h1>
-          <p>Edit or remove incorrect Last 10 saved entries stored on this device.</p>
+          <p>Create and correct the locked map definitions used by field mode.</p>
         </div>
         <a class="ghost link-button" href="./index.html">Back to map</a>
       </header>
 
       <section class="admin-card">
+        <h2>Definition editor</h2>
+        <p>Field mode cannot create, edit, or delete zones, trails, or markers. Edit them here, then return to the map.</p>
+        <div id="definitionStatus" class="logistics-output">Loading local definitions...</div>
+        <div class="controls">
+          <button id="saveDefinitionsBtn" class="primary">Save Definitions</button>
+          <button id="reloadDefinitionsBtn">Reload Definitions</button>
+        </div>
+      </section>
+
+      <section class="admin-card">
+        <h2>Zones</h2>
+        <p>Each zone may include an optional boundary. Boundary format is an array of `{ "lat": 44.0, "lng": -103.0 }` points.</p>
+        <textarea id="zonesJson" spellcheck="false"></textarea>
+      </section>
+
+      <section class="admin-card">
+        <h2>Trails / O/M roads</h2>
+        <p>Define road stretches here. Points must contain at least two `{ "lat", "lng" }` entries. Use flags for O/M road and daily rider travel.</p>
+        <textarea id="trailsJson" spellcheck="false"></textarea>
+      </section>
+
+      <section class="admin-card">
+        <h2>Markers / POIs / hazards</h2>
+        <p>Define head gates, checks, valves, hazards, POIs, washouts, and other points. Set `needsBrush` true for the brush / POI / hazard cutting overlay.</p>
+        <textarea id="markersJson" spellcheck="false"></textarea>
+      </section>
+
+      <section class="admin-card">
         <h2>Last 10 saved</h2>
+        <p>This is operational recent-history only. Editing it does not change locked map definitions.</p>
         <div id="adminStatus" class="logistics-output">Loading local records...</div>
         <div id="recentAdminList" class="admin-list"></div>
       </section>
@@ -28,7 +57,7 @@
         <p>This only affects the browser/device you are using. It does not change another phone or computer.</p>
         <div class="controls">
           <button id="clearRecentBtn" class="danger">Clear Last 10 List</button>
-          <button id="reloadAdminBtn">Reload</button>
+          <button id="reloadAdminBtn">Reload Recent</button>
         </div>
       </section>
     </main>
