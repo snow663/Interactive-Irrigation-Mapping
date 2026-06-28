@@ -25,9 +25,23 @@ The data path is:
 ```text
 Field/Admin app
   -> Firebase Auth
-  -> Firestore
-  -> Local offline cache / queued writes
+  -> Firestore source of record
+  -> Local cache / offline outbox / queued writes
 ```
+
+## Source-of-record rule
+
+Firestore is the reliable source of record for live shared field data.
+
+Local cache is not the only reliable storage layer. Local cache exists for:
+
+- fast page loading
+- offline field use
+- reducing constant server reads
+- holding queued writes while offline or temporarily disconnected
+- local backup/export/import support
+
+New field data must be written locally and then sent to Firestore as soon as the app is online, authenticated, and permitted to write. Backup ZIPs are a recovery/archive layer, not the primary storage system.
 
 ## Ownership split
 
@@ -169,13 +183,14 @@ Field devices should not edit shared definitions unless the device record explic
 
 ### On field app open
 
-1. Load local offline cache immediately.
+1. Load local cache immediately for fast startup and offline continuity.
 2. Authenticate device/user.
 3. Pull shared definitions from Firestore.
 4. Pull device profile and permissions.
 5. Pull recent activity/backlog relevant to that device.
 6. Merge any locally queued activity records.
 7. Push queued activity records only if the device is allowed to write activity.
+8. Mark records synced only after Firestore confirms the write.
 
 ### On admin app open
 
@@ -187,7 +202,7 @@ Field devices should not edit shared definitions unless the device record explic
 
 ## Field data persistence rule
 
-Field data must be stored immediately when the user applies it on the page.
+Field data must be persisted immediately when the user applies it on the page, and it must be queued for cloud sync immediately.
 
 Examples of field actions:
 
@@ -206,24 +221,29 @@ Every field action follows this write path:
 
 ```text
 User taps/apply/saves field action
-  -> create immutable local activity record
+  -> create immutable local activity record with unique ID
   -> write record to durable local cache immediately
-  -> add record to pending sync queue if Firestore is unavailable
+  -> add record to pending sync queue
   -> update visible page state from the saved local record
-  -> push to Firestore when online/authenticated/allowed
-  -> mark queued record as synced after Firestore confirms write
+  -> attempt Firestore write immediately if online/authenticated/allowed
+  -> keep retrying Firestore write until confirmed or conflict is resolved
+  -> mark queued record as synced only after Firestore confirms write
 ```
 
 Rules:
 
+- Firestore/cloud is the source of record for shared field data.
+- Local cache is a cache and outbox, not the only reliable storage plan.
 - Field data is not only stored during backup.
 - Field data is not only stored when the page closes.
 - Field data is not only stored during manual sync.
-- The UI should not display an action as saved until the local durable write succeeds.
-- Firestore sync can lag behind local storage, but local persistence cannot lag behind the page action.
+- New field data should attempt cloud upload immediately after the local write succeeds.
+- The UI should not display an action as locally saved until the local durable write succeeds.
+- The UI should show whether a record is synced or still pending cloud upload.
+- Firestore sync can lag behind local storage when offline, but cloud sync must be retried until resolved.
 - Offline field work must keep operating by writing to local cache and queueing sync operations.
 - Each field record keeps its own unique ID, device ID, timestamp, and sync status.
-- A failed Firestore write must leave the local record intact and marked as pending.
+- A failed Firestore write must leave the local record intact and marked as pending or failed, never silently discarded.
 
 Recommended record states:
 
@@ -236,7 +256,7 @@ sync-conflict
 sync-failed
 ```
 
-This makes local cache the immediate field truth on that device, while Firestore becomes the shared truth after sync succeeds.
+This makes local cache the immediate working copy on that device, while Firestore remains the durable shared source of record after sync succeeds.
 
 ### Activity write pattern
 
@@ -465,10 +485,13 @@ Optional later tools:
 - GitHub remains the source of code, not the live activity database.
 - Firestore becomes the source of live shared field data.
 - Firebase Storage stores uploaded ZIP backup objects.
-- Local storage remains an offline cache and pending-write queue.
+- Local storage is a fast-load/offline cache and pending-write outbox, not the only reliable storage layer.
 - Field data must be persisted locally immediately when applied on the page.
+- Field data must be queued for cloud sync immediately when applied on the page.
+- New field data must attempt cloud upload as soon as the device is online, authenticated, and allowed to write.
+- Field UI must show whether a record is synced or pending sync.
 - Field UI must update from saved local records, not from unsaved transient state.
-- Firestore sync may be delayed, but local field persistence may not be delayed.
+- Firestore sync may be delayed by connectivity, but it may not be replaced by backup/export/manual sync as the normal storage path.
 - Field devices never edit shared map definitions unless explicitly authorized.
 - Field devices never restore shared definitions.
 - Activity logs are append-style and device-scoped.
