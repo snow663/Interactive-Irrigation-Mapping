@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'interactive-irrigation-map-v11';
+const CACHE_VERSION = 'interactive-irrigation-map-v12';
 const APP_SHELL = [
   './',
   './index.html',
@@ -30,7 +30,7 @@ self.addEventListener('activate', (event) => {
 });
 
 function isMapTile(url) {
-  return url.hostname.includes('tile.openstreetmap.org') || url.hostname.includes('arcgisonline.com');
+  return url.hostname.includes('tile.openstreetmap.org') || url.hostname.includes('arcgisonline.com') || url.hostname.includes('basemap.nationalmap.gov');
 }
 
 function isDefinitionsFile(url) {
