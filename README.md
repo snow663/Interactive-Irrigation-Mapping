@@ -10,6 +10,7 @@ The app now has a hard split between **Admin definition mode** and **Field opera
 
 Use `admin.html` to create and correct locked map definitions:
 
+- Map coverage boundary
 - Zones
 - Zone boundaries
 - Trails / O/M roads
@@ -51,6 +52,18 @@ Hard rules:
 - New field data must be saved locally immediately when applied on the page, queued immediately, and pushed to Firestore as soon as the device is online, authenticated, and allowed to write.
 - Field UI must show whether records are synced or still pending cloud upload.
 - Backup ZIP export/import is a recovery/archive/manual-transfer layer, not the normal data-storage path.
+
+## Map coverage boundary
+
+The special zone `map-coverage` defines the field map coverage boundary.
+
+- It is selectable/editable in Admin like a normal zone.
+- It should contain all Ride zones.
+- It is drawn as a boundary layer in Field mode.
+- It is not used as a normal work/logging zone in Field mode.
+- Field map pan/zoom is constrained to the rectangular bounds of this zone.
+
+The prototype default coverage boundary is intentionally broad. Redraw `map-coverage` in Admin once the real district coverage area is known.
 
 ## Work overlays
 
@@ -94,6 +107,23 @@ https://snow663.github.io/Interactive-Irrigation-Mapping/admin.html
 ```
 
 ## Admin JSON formats
+
+### Map coverage zone
+
+```json
+{
+  "id": "map-coverage",
+  "name": "Map Coverage Boundary",
+  "type": "coverage",
+  "notes": "Large selectable admin-defined boundary containing all ride zones.",
+  "boundary": [
+    { "lat": 44.9, "lng": -104.25 },
+    { "lat": 44.9, "lng": -103.45 },
+    { "lat": 44.45, "lng": -103.45 },
+    { "lat": 44.45, "lng": -104.25 }
+  ]
+}
+```
 
 ### Zone
 
