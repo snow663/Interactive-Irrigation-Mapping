@@ -3,7 +3,20 @@ const LEGACY_KEYS = ['interactive-irrigation-map-v7','interactive-irrigation-map
 const TOKEN_KEY = 'interactive-irrigation-github-token';
 const MAX_RECENT_SAVES = 10;
 const DEFAULT_CENTER = [44.6714, -103.8522];
-const DEFAULT_ZONES = [['ride1','Ride 1'],['ride2','Ride 2'],['ride4','Ride 4'],['ride5','Ride 5'],['ride6','Ride 6'],['ride7','Ride 7'],['ride8','Ride 8'],['ride10','Ride 10']];
+const COVERAGE_ZONE_ID = 'map-coverage';
+const DEFAULT_COVERAGE_ZONE = {
+  id: COVERAGE_ZONE_ID,
+  name: 'Map Coverage Boundary',
+  type: 'coverage',
+  notes: 'Large admin-defined map coverage zone. Field map pan/zoom is constrained to this boundary.',
+  boundary: [
+    { lat: 44.9, lng: -104.25 },
+    { lat: 44.9, lng: -103.45 },
+    { lat: 44.45, lng: -103.45 },
+    { lat: 44.45, lng: -104.25 }
+  ]
+};
+const DEFAULT_WORK_ZONES = [['ride1','Ride 1'],['ride2','Ride 2'],['ride4','Ride 4'],['ride5','Ride 5'],['ride6','Ride 6'],['ride7','Ride 7'],['ride8','Ride 8'],['ride10','Ride 10']];
 const ASSET_TYPE_LIST = [['head-gate','Head gate'],['valve','Valve'],['box','Box'],['check','Check'],['culvert','Culvert'],['crossing','Crossing'],['washout','Washout'],['spray-area','Spray area'],['hazard','Hazard'],['problem','Problem spot'],['poi','POI'],['note','Note']];
 const ASSET_TYPES = new Set(ASSET_TYPE_LIST.map(([id]) => id));
 const DEFAULT_BRUSH_TYPES = new Set(['head-gate','check','valve','washout','hazard','problem','poi']);
@@ -38,26 +51,33 @@ function slug(value, fallback) { return String(value || fallback || 'item').trim
 function pointFromLatLng(latLng) { return { lat: Number(latLng.lat.toFixed(6)), lng: Number(latLng.lng.toFixed(6)) }; }
 function normalizePoint(point) { return point && Number.isFinite(Number(point.lat)) && Number.isFinite(Number(point.lng)) ? { lat: Number(point.lat), lng: Number(point.lng) } : null; }
 function normalizePointList(points = []) { return points.map(normalizePoint).filter(Boolean); }
+function isCoverageZone(zone) { return zone?.id === COVERAGE_ZONE_ID || zone?.type === 'coverage' || zone?.role === 'map-coverage'; }
+function workZones() { return state.zones.filter((zone) => !isCoverageZone(zone)); }
 function normalizeZones(zones = []) {
-  const source = zones.length ? zones : DEFAULT_ZONES.map(([id,name]) => ({ id, name, notes: '', boundary: [] }));
+  const source = zones.length ? zones : [DEFAULT_COVERAGE_ZONE, ...DEFAULT_WORK_ZONES.map(([id,name]) => ({ id, name, notes: '', boundary: [] }))];
   const seen = new Set();
-  return source.map((z, i) => ({ id: String(z.id || `zone-${i + 1}`).trim(), name: String(z.name || z.label || `Zone ${i + 1}`).trim(), notes: String(z.notes || ''), boundary: normalizePointList(z.boundary || z.points || []) })).filter((z) => z.id && z.name && !seen.has(z.id) && seen.add(z.id));
+  const normalized = source.map((z, i) => {
+    const type = isCoverageZone(z) ? 'coverage' : String(z.type || z.role || '');
+    return { id: String(z.id || `zone-${i + 1}`).trim(), name: String(z.name || z.label || `Zone ${i + 1}`).trim(), type, notes: String(z.notes || ''), boundary: normalizePointList(z.boundary || z.points || []) };
+  }).filter((z) => z.id && z.name && !seen.has(z.id) && seen.add(z.id));
+  if (!normalized.some(isCoverageZone)) normalized.unshift({ ...DEFAULT_COVERAGE_ZONE, boundary: normalizePointList(DEFAULT_COVERAGE_ZONE.boundary) });
+  return normalized;
 }
 function normalizeTrailOverlays(t = {}) { return { mowing: Boolean(t.overlays?.mowing ?? t.mowing ?? true), spraying: Boolean(t.overlays?.spraying ?? t.spraying ?? false) }; }
 function normalizeTrailFlags(t = {}) { return { omRoad: Boolean(t.flags?.omRoad ?? t.omRoad ?? true), dailyTravel: Boolean(t.flags?.dailyTravel ?? t.dailyTravel ?? false) }; }
 function normalizeTrails(trails = [], zones = normalizeZones()) {
-  const validZone = new Set(zones.map((z) => z.id));
-  const fallback = zones[0]?.id || 'ride1';
-  return trails.map((t, i) => ({ id: String(t.id || `trail-${Date.now()}-${i}`), name: String(t.name || `Trail ${i + 1}`).trim(), zoneId: validZone.has(t.zoneId) ? t.zoneId : fallback, overlays: normalizeTrailOverlays(t), flags: normalizeTrailFlags(t), estimatedMinutes: Number.isFinite(Number(t.estimatedMinutes)) ? Number(t.estimatedMinutes) : null, notes: String(t.notes || ''), points: normalizePointList(t.points || []) })).filter((t) => t.name && t.points.length >= 2);
+  const validWorkZones = new Set(zones.filter((z) => !isCoverageZone(z)).map((z) => z.id));
+  const fallback = [...validWorkZones][0] || 'ride1';
+  return trails.map((t, i) => ({ id: String(t.id || `trail-${Date.now()}-${i}`), name: String(t.name || `Trail ${i + 1}`).trim(), zoneId: validWorkZones.has(t.zoneId) ? t.zoneId : fallback, overlays: normalizeTrailOverlays(t), flags: normalizeTrailFlags(t), estimatedMinutes: Number.isFinite(Number(t.estimatedMinutes)) ? Number(t.estimatedMinutes) : null, notes: String(t.notes || ''), points: normalizePointList(t.points || []) })).filter((t) => t.name && t.points.length >= 2);
 }
 function normalizeMarkers(markers = [], zones = normalizeZones()) {
-  const validZone = new Set(zones.map((z) => z.id));
-  const fallback = zones[0]?.id || 'ride1';
-  return markers.map((m, i) => { const point = normalizePoint(m); const type = ASSET_TYPES.has(m.type) ? m.type : 'note'; return point ? { id: String(m.id || `marker-${Date.now()}-${i}`), name: String(m.name || `Marker ${i + 1}`).trim(), type, zoneId: validZone.has(m.zoneId) ? m.zoneId : fallback, lat: point.lat, lng: point.lng, needsBrush: Boolean(m.needsBrush ?? m.needsClearing ?? DEFAULT_BRUSH_TYPES.has(type)), notes: String(m.notes || '') } : null; }).filter((m) => m.id && m.name);
+  const validWorkZones = new Set(zones.filter((z) => !isCoverageZone(z)).map((z) => z.id));
+  const fallback = [...validWorkZones][0] || 'ride1';
+  return markers.map((m, i) => { const point = normalizePoint(m); const type = ASSET_TYPES.has(m.type) ? m.type : 'note'; return point ? { id: String(m.id || `marker-${Date.now()}-${i}`), name: String(m.name || `Marker ${i + 1}`).trim(), type, zoneId: validWorkZones.has(m.zoneId) ? m.zoneId : fallback, lat: point.lat, lng: point.lng, needsBrush: Boolean(m.needsBrush ?? m.needsClearing ?? DEFAULT_BRUSH_TYPES.has(type)), notes: String(m.notes || '') } : null; }).filter((m) => m.id && m.name);
 }
 function normalizeRecentSaves(items = [], zones = normalizeZones()) {
-  const validZone = new Set(zones.map((z) => z.id));
-  return items.map((item, index) => ({ id: item.id || `recent-${Date.now()}-${index}`, timestamp: Number.isFinite(item.timestamp) ? item.timestamp : Date.now(), type: String(item.type || 'Saved'), zoneId: validZone.has(item.zoneId) ? item.zoneId : '', title: String(item.title || 'Saved record'), details: String(item.details || '') })).sort((a,b) => b.timestamp - a.timestamp).slice(0, MAX_RECENT_SAVES);
+  const validWorkZones = new Set(zones.filter((z) => !isCoverageZone(z)).map((z) => z.id));
+  return items.map((item, index) => ({ id: item.id || `recent-${Date.now()}-${index}`, timestamp: Number.isFinite(item.timestamp) ? item.timestamp : Date.now(), type: String(item.type || 'Saved'), zoneId: validWorkZones.has(item.zoneId) ? item.zoneId : '', title: String(item.title || 'Saved record'), details: String(item.details || '') })).sort((a,b) => b.timestamp - a.timestamp).slice(0, MAX_RECENT_SAVES);
 }
 function normalizeState(raw = {}) {
   const zones = normalizeZones(raw.zones);
@@ -91,25 +111,27 @@ function populateSelect(select, options, emptyText = '') {
   if ([...select.options].some((o) => o.value === previous)) select.value = previous;
 }
 function zoneLabel(zoneId) { return state.zones.find((z) => z.id === zoneId)?.name || zoneId || 'No zone'; }
+function zoneOptionLabel(zone) { return isCoverageZone(zone) ? `${zone.name} — map limit` : zone.name; }
 function refreshSelects() {
-  populateSelect(el.zoneAdminSelect, state.zones.map((z) => [z.id, z.name]), 'New zone');
+  const assignableZones = workZones();
+  populateSelect(el.zoneAdminSelect, state.zones.map((z) => [z.id, zoneOptionLabel(z)]), 'New zone');
   populateSelect(el.trailAdminSelect, state.drawnTrails.map((t) => [t.id, t.name]), 'New trail');
   populateSelect(el.markerAdminSelect, state.assets.map((m) => [m.id, m.name]), 'New marker');
-  populateSelect(el.trailZoneSelect, state.zones.map((z) => [z.id, z.name]));
-  populateSelect(el.markerZoneSelect, state.zones.map((z) => [z.id, z.name]));
+  populateSelect(el.trailZoneSelect, assignableZones.map((z) => [z.id, z.name]));
+  populateSelect(el.markerZoneSelect, assignableZones.map((z) => [z.id, z.name]));
   populateSelect(el.markerTypeSelect, ASSET_TYPE_LIST);
 }
 function syncJsonEditors() {
   el.zonesJson.value = pretty(state.zones);
   el.trailsJson.value = pretty(state.drawnTrails);
   el.markersJson.value = pretty(state.assets);
-  setDefinitionStatus(`Local definitions: <strong>${state.zones.length}</strong> zones, <strong>${state.drawnTrails.length}</strong> trails, <strong>${state.assets.length}</strong> markers.`);
+  setDefinitionStatus(`Local definitions: <strong>${state.zones.length}</strong> zones including coverage, <strong>${state.drawnTrails.length}</strong> trails, <strong>${state.assets.length}</strong> markers.`);
 }
 function syncAllViews() { state = normalizeState(state); saveState(state); refreshSelects(); syncJsonEditors(); drawDefinitions(); renderRecent(); }
 
 function drawDefinitions() {
   zoneLayer.clearLayers(); trailLayer.clearLayers(); markerLayer.clearLayers(); draftLayer.clearLayers();
-  for (const zone of state.zones) if (zone.boundary.length >= 3) L.polygon(zone.boundary.map((p) => [p.lat, p.lng]), { color: '#38bdf8', weight: 2, fillOpacity: 0.06 }).bindPopup(`<strong>${escapeHtml(zone.name)}</strong><br>${escapeHtml(zone.notes || '')}`).addTo(zoneLayer);
+  for (const zone of state.zones) if (zone.boundary.length >= 3) { const coverage = isCoverageZone(zone); L.polygon(zone.boundary.map((p) => [p.lat, p.lng]), { color: coverage ? '#facc15' : '#38bdf8', weight: coverage ? 3 : 2, fillOpacity: coverage ? 0.02 : 0.06, dashArray: coverage ? '8 8' : null }).bindPopup(`<strong>${escapeHtml(zone.name)}</strong><br>${coverage ? 'Map scroll/zoom boundary<br>' : ''}${escapeHtml(zone.notes || '')}`).addTo(zoneLayer); }
   for (const trail of state.drawnTrails) {
     const color = trail.overlays.mowing && trail.overlays.spraying ? '#14b8a6' : trail.overlays.spraying ? '#a855f7' : '#22c55e';
     L.polyline(trail.points.map((p) => [p.lat, p.lng]), { color, weight: 5, opacity: 0.86, dashArray: trail.flags.dailyTravel ? '4 8' : null }).bindPopup(`<strong>${escapeHtml(trail.name)}</strong><br>${escapeHtml(zoneLabel(trail.zoneId))}`).addTo(trailLayer);
@@ -131,7 +153,9 @@ function drawDraft() {
   for (const point of draftPoints) L.circleMarker([point.lat, point.lng], { radius: 4, color: '#facc15', fillColor: '#facc15', fillOpacity: 0.95 }).addTo(draftLayer);
 }
 function fitDefinedBounds() {
-  const latLngs = [...state.zones.flatMap((z) => z.boundary), ...state.drawnTrails.flatMap((t) => t.points), ...state.assets.map((m) => ({ lat: m.lat, lng: m.lng }))].map((p) => [p.lat, p.lng]);
+  const coverage = state.zones.find(isCoverageZone);
+  const source = coverage?.boundary?.length >= 3 ? coverage.boundary : [...state.zones.flatMap((z) => z.boundary), ...state.drawnTrails.flatMap((t) => t.points), ...state.assets.map((m) => ({ lat: m.lat, lng: m.lng }))];
+  const latLngs = source.map((p) => [p.lat, p.lng]);
   if (latLngs.length) adminMap.fitBounds(L.latLngBounds(latLngs), { padding: [24,24], maxZoom: 15 });
 }
 function setActiveTool(tool, { clearDraft = true, toggle = false } = {}) {
@@ -141,7 +165,7 @@ function setActiveTool(tool, { clearDraft = true, toggle = false } = {}) {
   el.drawZoneBtn.classList.toggle('active', activeTool === 'zone');
   el.drawTrailBtn.classList.toggle('active', activeTool === 'trail');
   el.dropMarkerBtn.classList.toggle('active', activeTool === 'marker');
-  el.adminDrawHelp.textContent = activeTool === 'zone' ? 'Click boundary corners around the selected/new zone, then Save Zone.' : activeTool === 'trail' ? 'Click road/trail points in order, then Save Trail.' : activeTool === 'marker' ? 'Click the marker location, then Save Marker.' : 'Select a tool, then click the map.';
+  el.adminDrawHelp.textContent = activeTool === 'zone' ? 'Click boundary corners around the selected/new zone, then Save Zone. Select “Map Coverage Boundary” to edit the outer map limit.' : activeTool === 'trail' ? 'Click road/trail points in order, then Save Trail.' : activeTool === 'marker' ? 'Click the marker location, then Save Marker.' : 'Select a tool, then click the map.';
   drawDefinitions();
 }
 adminMap.on('click', (event) => {
@@ -161,10 +185,12 @@ function loadZone(zone = selectedZone()) {
 }
 function saveZone() {
   const existingId = el.zoneAdminSelect.value;
-  const id = slug(el.zoneIdInput.value, `zone-${state.zones.length + 1}`);
-  const name = el.zoneNameInput.value.trim() || id;
-  const existing = state.zones.find((z) => z.id === existingId || z.id === id);
-  const zone = { id, name, notes: el.zoneNotesInput.value.trim(), boundary: draftPoints.length >= 3 ? [...draftPoints] : (existing?.boundary || []) };
+  const existing = state.zones.find((z) => z.id === existingId);
+  const id = isCoverageZone(existing) ? COVERAGE_ZONE_ID : slug(el.zoneIdInput.value, `zone-${state.zones.length + 1}`);
+  const name = el.zoneNameInput.value.trim() || (id === COVERAGE_ZONE_ID ? 'Map Coverage Boundary' : id);
+  const matched = state.zones.find((z) => z.id === existingId || z.id === id);
+  const coverage = isCoverageZone(existing) || id === COVERAGE_ZONE_ID;
+  const zone = { id, name, type: coverage ? 'coverage' : '', notes: el.zoneNotesInput.value.trim(), boundary: draftPoints.length >= 3 ? [...draftPoints] : (matched?.boundary || []) };
   state.zones = state.zones.filter((z) => z.id !== existingId && z.id !== id);
   state.zones.push(zone);
   syncAllViews(); el.zoneAdminSelect.value = id; loadZone(zone);
@@ -172,6 +198,7 @@ function saveZone() {
 function deleteZone() {
   const zone = selectedZone();
   if (!zone) return;
+  if (isCoverageZone(zone)) return alert('The map coverage boundary cannot be deleted. Edit its boundary instead.');
   if (!window.confirm(`Delete zone ${zone.name}? Trails/markers assigned to it will move to the first remaining zone.`)) return;
   state.zones = state.zones.filter((z) => z.id !== zone.id);
   state = normalizeState(state); draftPoints = []; syncAllViews();
@@ -189,7 +216,7 @@ function saveTrail() {
   const existing = state.drawnTrails.find((t) => t.id === existingId || t.id === id);
   const points = draftPoints.length >= 2 ? [...draftPoints] : (existing?.points || []);
   if (points.length < 2) return alert('A trail needs at least two map points.');
-  const trail = { id, name, zoneId: el.trailZoneSelect.value || state.zones[0]?.id || 'ride1', overlays: { mowing: el.trailMowingAdminCheck.checked, spraying: el.trailSprayingAdminCheck.checked }, flags: { omRoad: el.trailOmAdminCheck.checked, dailyTravel: el.trailDailyAdminCheck.checked }, estimatedMinutes: Number.isFinite(Number(el.trailMinutesInput.value)) ? Number(el.trailMinutesInput.value) : null, notes: el.trailNotesInput.value.trim(), points };
+  const trail = { id, name, zoneId: el.trailZoneSelect.value || workZones()[0]?.id || 'ride1', overlays: { mowing: el.trailMowingAdminCheck.checked, spraying: el.trailSprayingAdminCheck.checked }, flags: { omRoad: el.trailOmAdminCheck.checked, dailyTravel: el.trailDailyAdminCheck.checked }, estimatedMinutes: Number.isFinite(Number(el.trailMinutesInput.value)) ? Number(el.trailMinutesInput.value) : null, notes: el.trailNotesInput.value.trim(), points };
   state.drawnTrails = state.drawnTrails.filter((t) => t.id !== existingId && t.id !== id);
   state.drawnTrails.push(trail);
   syncAllViews(); el.trailAdminSelect.value = id; loadTrail(trail);
@@ -204,7 +231,7 @@ function saveMarker() {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return alert('A marker needs latitude and longitude. Use Drop Marker and click the map, or type coordinates.');
   const existingId = el.markerAdminSelect.value;
   const id = slug(el.markerIdInput.value || el.markerNameInput.value, `marker-${state.assets.length + 1}`);
-  const marker = { id, name: el.markerNameInput.value.trim() || id, type: el.markerTypeSelect.value || 'note', zoneId: el.markerZoneSelect.value || state.zones[0]?.id || 'ride1', lat, lng, needsBrush: el.markerBrushCheck.checked, notes: el.markerNotesInput.value.trim() };
+  const marker = { id, name: el.markerNameInput.value.trim() || id, type: el.markerTypeSelect.value || 'note', zoneId: el.markerZoneSelect.value || workZones()[0]?.id || 'ride1', lat, lng, needsBrush: el.markerBrushCheck.checked, notes: el.markerNotesInput.value.trim() };
   state.assets = state.assets.filter((m) => m.id !== existingId && m.id !== id);
   state.assets.push(marker);
   syncAllViews(); el.markerAdminSelect.value = id; loadMarker(marker);
