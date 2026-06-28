@@ -18,13 +18,29 @@
         <h1>Interactive Irrigation Mapping</h1>
         <span id="connectionStatus" class="pill">Idle</span>
       </div>
-      <button id="installBtn" class="ghost" hidden>Install</button>
+      <div class="top-actions">
+        <button id="panelToggleBtn" class="ghost">Panel</button>
+        <button id="legendToggleBtn" class="ghost">Key</button>
+        <a class="ghost link-button" href="./admin.html">Admin</a>
+        <button id="installBtn" class="ghost" hidden>Install</button>
+      </div>
     </header>
 
     <main class="app-shell">
       <div id="map" aria-label="Interactive GPS map"></div>
 
-      <aside class="panel" aria-label="GPS controls and readouts">
+      <aside id="legendPanel" class="legend-panel" aria-label="Map color and symbol key" hidden>
+        <h2>Map key</h2>
+        <div class="legend-row"><span class="line-swatch mowing"></span><span>Mowing road/stretch</span></div>
+        <div class="legend-row"><span class="line-swatch spraying"></span><span>Spraying road/stretch</span></div>
+        <div class="legend-row"><span class="line-swatch overlap"></span><span>Mowing + spraying overlap</span></div>
+        <div class="legend-row"><span class="line-swatch daily"></span><span>Daily rider travel flag</span></div>
+        <div class="legend-row"><span class="line-swatch om"></span><span>O/M road flag</span></div>
+        <div class="legend-row"><span class="point-swatch clearing"></span><span>Head gate / check / valve clearing point</span></div>
+        <div class="legend-row"><span class="point-swatch asset"></span><span>Other asset / note</span></div>
+      </aside>
+
+      <aside id="controlPanel" class="panel" aria-label="GPS controls and readouts">
         <section class="readout-grid">
           <div><span class="label">Latitude</span><strong id="latReadout">--</strong></div>
           <div><span class="label">Longitude</span><strong id="lngReadout">--</strong></div>
@@ -43,13 +59,33 @@
         </section>
 
         <section class="overlay-panel" aria-label="Visible work overlays">
-          <h2>Visible overlays</h2>
+          <h2>Visible work overlays</h2>
           <div class="check-grid">
             <label><input id="showMowingCheck" type="checkbox" checked /> Mowing</label>
             <label><input id="showSprayingCheck" type="checkbox" checked /> Spraying</label>
-            <label><input id="showDailyTravelCheck" type="checkbox" checked /> Daily rider travel</label>
             <label><input id="showClearingCheck" type="checkbox" checked /> Gate/check/valve clearing</label>
           </div>
+        </section>
+
+        <section class="logistics-panel" aria-label="Route logistics helper">
+          <h2>Logistics</h2>
+          <div class="field-grid">
+            <label>Available hours
+              <input id="availableHoursInput" type="number" min="0.5" max="14" step="0.5" value="6" />
+            </label>
+            <label>Plan type
+              <select id="planTypeSelect">
+                <option value="mowing">Mowing</option>
+                <option value="spraying">Spraying</option>
+                <option value="structure-clearing">Gate/check/valve clearing</option>
+              </select>
+            </label>
+          </div>
+          <div class="controls logistics-controls">
+            <button id="nearestOmBtn">Nearest O/M Entry</button>
+            <button id="planDayBtn" class="primary">Plan Work</button>
+          </div>
+          <div id="logisticsOutput" class="logistics-output">Use GPS or pan the map, then run a logistics check.</div>
         </section>
 
         <section class="ops-panel" aria-label="Irrigation operations tracking">
@@ -89,10 +125,14 @@
           <h2>Manual trail marking</h2>
           <p id="drawHelp">Draw trails without driving them. Use freehand to sketch, or point mode to tap corners.</p>
           <div class="trail-tags">
-            <h3>New trail overlays</h3>
+            <h3>New trail work overlays</h3>
             <div class="check-grid">
               <label><input id="trailMowingCheck" type="checkbox" checked /> Mowing</label>
               <label><input id="trailSprayingCheck" type="checkbox" /> Spraying</label>
+            </div>
+            <h3>New trail flags</h3>
+            <div class="check-grid">
+              <label><input id="trailOmRoadCheck" type="checkbox" checked /> O/M road</label>
               <label><input id="trailDailyTravelCheck" type="checkbox" /> Daily rider travel</label>
             </div>
           </div>
