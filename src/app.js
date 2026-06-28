@@ -1,7 +1,8 @@
 const DEFAULT_CENTER = [44.6714, -103.8522];
 const DEFAULT_ZOOM = 13;
-const STORAGE_KEY = 'interactive-irrigation-map-v4';
+const STORAGE_KEY = 'interactive-irrigation-map-v5';
 const LEGACY_KEYS = [
+  'interactive-irrigation-map-v4',
   'interactive-irrigation-map-v3',
   'interactive-irrigation-map-v2',
   'interactive-irrigation-map-v1'
@@ -38,13 +39,17 @@ const ASSET_TYPES = [
 
 const WORK_TYPES = [
   ['road-clearing', 'Road clearing'],
+  ['mowing', 'Mowing'],
   ['spraying', 'Spraying'],
+  ['structure-clearing', 'Gate/check/valve clearing'],
   ['scouting', 'Scouting / inspection'],
   ['repair', 'Repair / maintenance'],
   ['ditch-rider-support', 'Ditch rider support'],
   ['drive-time', 'Drive time'],
   ['other', 'Other']
 ];
+
+const CLEARING_ASSET_TYPES = new Set(['head-gate', 'check', 'valve']);
 
 const $ = (id) => document.getElementById(id);
 
@@ -56,10 +61,15 @@ const el = {
   wakeBtn: $('wakeBtn'),
   waypointBtn: $('waypointBtn'),
   clearTrackBtn: $('clearTrackBtn'),
+  showMowingCheck: $('showMowingCheck'),
+  showSprayingCheck: $('showSprayingCheck'),
+  showDailyTravelCheck: $('showDailyTravelCheck'),
+  showClearingCheck: $('showClearingCheck'),
   zoneSelect: $('zoneSelect'),
   trailSelect: $('trailSelect'),
   assetTypeSelect: $('assetTypeSelect'),
   workTypeSelect: $('workTypeSelect'),
+  assetNeedsClearingCheck: $('assetNeedsClearingCheck'),
   zoneSummary: $('zoneSummary'),
   addAssetBtn: $('addAssetBtn'),
   markVisitedBtn: $('markVisitedBtn'),
@@ -68,6 +78,9 @@ const el = {
   stopWorkBtn: $('stopWorkBtn'),
   addLogBtn: $('addLogBtn'),
   recentList: $('recentList'),
+  trailMowingCheck: $('trailMowingCheck'),
+  trailSprayingCheck: $('trailSprayingCheck'),
+  trailDailyTravelCheck: $('trailDailyTravelCheck'),
   freehandBtn: $('freehandBtn'),
   pointDrawBtn: $('pointDrawBtn'),
   finishDrawBtn: $('finishDrawBtn'),
@@ -125,7 +138,11 @@ L.control.layers({ Streets: streetLayer, Imagery: imageryLayer }, {}, { position
 const trackLayer = L.polyline([], { weight: 4, opacity: 0.9, color: '#2563eb' }).addTo(map);
 const waypointLayer = L.layerGroup().addTo(map);
 const assetLayer = L.layerGroup().addTo(map);
-const drawnTrailLayer = L.layerGroup().addTo(map);
+const mowingLayer = L.layerGroup().addTo(map);
+const sprayingLayer = L.layerGroup().addTo(map);
+const dailyTravelLayer = L.layerGroup().addTo(map);
+const clearingLayer = L.layerGroup().addTo(map);
+const untaggedTrailLayer = L.layerGroup().addTo(map);
 const draftDrawLayer = L.layerGroup().addTo(map);
 const importedLayer = L.layerGroup().addTo(map);
 
@@ -375,6 +392,15 @@ function normalizeWaypoints(points = []) {
     }));
 }
 
+function normalizeTrailOverlays(trail = {}) {
+  const oldHasNoOverlayData = !trail.overlays && !('mowing' in trail) && !('spraying' in trail) && !('dailyTravel' in trail);
+  return {
+    mowing: Boolean(trail.overlays?.mowing ?? trail.mowing ?? oldHasNoOverlayData),
+    spraying: Boolean(trail.overlays?.spraying ?? trail.spraying ?? false),
+    dailyTravel: Boolean(trail.overlays?.dailyTravel ?? trail.dailyTravel ?? false)
+  };
+}
+
 function normalizeDrawnTrails(trails = []) {
   return trails
     .map((trail, index) => ({
@@ -382,6 +408,7 @@ function normalizeDrawnTrails(trails = []) {
       name: String(trail.name || `Drawn Trail ${index + 1}`),
       mode: trail.mode === 'freehand' ? 'freehand' : 'point',
       zoneId: zoneExists(trail.zoneId) ? trail.zoneId : 'ride1',
+      overlays: normalizeTrailOverlays(trail),
       estimatedMinutes: Number.isFinite(trail.estimatedMinutes) ? Number(trail.estimatedMinutes) : null,
       timestamp: Number.isFinite(trail.timestamp) ? trail.timestamp : Date.now(),
       points: normalizeTrack(trail.points || [])
@@ -392,17 +419,21 @@ function normalizeDrawnTrails(trails = []) {
 function normalizeAssets(assets = []) {
   return assets
     .filter((asset) => Number.isFinite(asset.lat) && Number.isFinite(asset.lng))
-    .map((asset, index) => ({
-      id: asset.id || `asset-${Date.now()}-${index}`,
-      type: assetTypeExists(asset.type) ? asset.type : 'note',
-      zoneId: zoneExists(asset.zoneId) ? asset.zoneId : 'ride1',
-      name: String(asset.name || `Asset ${index + 1}`),
-      notes: String(asset.notes || ''),
-      lat: Number(asset.lat),
-      lng: Number(asset.lng),
-      timestamp: Number.isFinite(asset.timestamp) ? asset.timestamp : Date.now(),
-      lastVisited: Number.isFinite(asset.lastVisited) ? asset.lastVisited : null
-    }));
+    .map((asset, index) => {
+      const type = assetTypeExists(asset.type) ? asset.type : 'note';
+      return {
+        id: asset.id || `asset-${Date.now()}-${index}`,
+        type,
+        zoneId: zoneExists(asset.zoneId) ? asset.zoneId : 'ride1',
+        name: String(asset.name || `Asset ${index + 1}`),
+        notes: String(asset.notes || ''),
+        needsClearing: Boolean(asset.needsClearing ?? CLEARING_ASSET_TYPES.has(type)),
+        lat: Number(asset.lat),
+        lng: Number(asset.lng),
+        timestamp: Number.isFinite(asset.timestamp) ? asset.timestamp : Date.now(),
+        lastVisited: Number.isFinite(asset.lastVisited) ? asset.lastVisited : null
+      };
+    });
 }
 
 function normalizeLogs(logs = []) {
@@ -563,6 +594,24 @@ function populateStaticControls() {
   updateTrailSelect();
 }
 
+function overlayLabelList(overlays = {}) {
+  const labels = [];
+  if (overlays.mowing) labels.push('Mowing');
+  if (overlays.spraying) labels.push('Spraying');
+  if (overlays.dailyTravel) labels.push('Daily rider travel');
+  return labels.length ? labels : ['Untagged'];
+}
+
+function selectedTrailOverlays() {
+  const overlays = {
+    mowing: Boolean(el.trailMowingCheck.checked),
+    spraying: Boolean(el.trailSprayingCheck.checked),
+    dailyTravel: Boolean(el.trailDailyTravelCheck.checked)
+  };
+  if (!overlays.mowing && !overlays.spraying && !overlays.dailyTravel) overlays.mowing = true;
+  return overlays;
+}
+
 function updateTrailSelect() {
   const zoneId = selectedZoneId();
   el.trailSelect.innerHTML = '';
@@ -574,7 +623,7 @@ function updateTrailSelect() {
   for (const trail of state.drawnTrails.filter((item) => item.zoneId === zoneId)) {
     const option = document.createElement('option');
     option.value = trail.id;
-    option.textContent = trail.name;
+    option.textContent = `${trail.name} (${overlayLabelList(trail.overlays).join(' + ')})`;
     el.trailSelect.append(option);
   }
 }
@@ -645,13 +694,20 @@ function updateZoneSummary() {
   const durationLogs = zoneLogs.filter((log) => Number.isFinite(log.durationMinutes));
   const avg = average(durationLogs.map((log) => log.durationMinutes));
   const total = durationLogs.reduce((sum, log) => sum + log.durationMinutes, 0);
+  const mowing = zoneTrails.filter((trail) => trail.overlays.mowing).length;
+  const spraying = zoneTrails.filter((trail) => trail.overlays.spraying).length;
+  const daily = zoneTrails.filter((trail) => trail.overlays.dailyTravel).length;
+  const clearing = zoneAssets.filter((asset) => asset.needsClearing && CLEARING_ASSET_TYPES.has(asset.type)).length;
 
   el.zoneSummary.innerHTML = [
     `<strong>${zoneLabel(zoneId)}</strong>`,
     `<span>Last visited: ${daysAgo(status.lastVisited)}</span>`,
     `<span>Last completed: ${daysAgo(status.lastCompleted)}</span>`,
     `<span>Completions: ${status.completedCount || 0}</span>`,
-    `<span>Drawn road/trail stretches: ${zoneTrails.length}</span>`,
+    `<span>Mowing stretches: ${mowing}</span>`,
+    `<span>Spray stretches: ${spraying}</span>`,
+    `<span>Daily rider travel: ${daily}</span>`,
+    `<span>Clearing points: ${clearing}</span>`,
     `<span>Assets: ${zoneAssets.length}</span>`,
     `<span>Logs: ${zoneLogs.length}</span>`,
     `<span>Total logged time: ${minutesLabel(total)}</span>`,
@@ -677,52 +733,98 @@ function addWaypointMarker(waypoint) {
   marker.addTo(waypointLayer);
 }
 
-function addAssetMarker(asset) {
-  const marker = L.circleMarker([asset.lat, asset.lng], {
-    radius: 8,
-    weight: 2,
-    color: '#facc15',
-    fillColor: '#facc15',
-    fillOpacity: 0.85
-  });
-  marker.bindPopup([
+function assetPopup(asset) {
+  return [
     `<strong>${escapeHtml(asset.name)}</strong>`,
     `<span>${escapeHtml(labelFor(ASSET_TYPES, asset.type))}</span>`,
     `<span>${escapeHtml(zoneLabel(asset.zoneId))}</span>`,
+    `<span>${asset.needsClearing ? 'Needs clearing' : 'No clearing flag'}</span>`,
     `<span>Last visited: ${daysAgo(asset.lastVisited)}</span>`,
     asset.notes ? `<span>${escapeHtml(asset.notes)}</span>` : ''
-  ].filter(Boolean).join('<br>'));
+  ].filter(Boolean).join('<br>');
+}
+
+function addAssetMarker(asset) {
+  const marker = L.circleMarker([asset.lat, asset.lng], {
+    radius: 6,
+    weight: 2,
+    color: '#facc15',
+    fillColor: '#facc15',
+    fillOpacity: 0.8
+  });
+  marker.bindPopup(assetPopup(asset));
   marker.addTo(assetLayer);
+}
+
+function addClearingMarker(asset) {
+  const marker = L.circleMarker([asset.lat, asset.lng], {
+    radius: 10,
+    weight: 3,
+    color: '#ef4444',
+    fillColor: '#f97316',
+    fillOpacity: 0.85
+  });
+  marker.bindPopup(assetPopup(asset));
+  marker.addTo(clearingLayer);
 }
 
 function redrawAssets() {
   assetLayer.clearLayers();
-  state.assets.forEach(addAssetMarker);
+  clearingLayer.clearLayers();
+  for (const asset of state.assets) {
+    const isClearingPoint = asset.needsClearing && CLEARING_ASSET_TYPES.has(asset.type);
+    if (isClearingPoint) {
+      if (el.showClearingCheck.checked) addClearingMarker(asset);
+    } else {
+      addAssetMarker(asset);
+    }
+  }
 }
 
-function addDrawnTrail(trail) {
+function trailPopup(trail) {
   const stats = trailStats(trail.id);
-  const line = L.polyline(trail.points.map(toLatLng), {
-    weight: 5,
-    opacity: 0.9,
-    color: '#22c55e',
-    dashArray: trail.mode === 'freehand' ? null : '8 6'
-  });
-  line.bindPopup([
+  return [
     `<strong>${escapeHtml(trail.name)}</strong>`,
     `<span>${escapeHtml(zoneLabel(trail.zoneId))}</span>`,
+    `<span>Overlays: ${escapeHtml(overlayLabelList(trail.overlays).join(' + '))}</span>`,
     `<span>${trail.mode === 'freehand' ? 'Freehand' : 'Point-to-point'}</span>`,
     `<span>${trail.points.length} points</span>`,
     `<span>Estimated: ${minutesLabel(trail.estimatedMinutes)}</span>`,
     `<span>Average actual: ${minutesLabel(stats.averageMinutes)}</span>`,
     `<span>Last worked: ${daysAgo(stats.lastWorked)}</span>`
-  ].join('<br>'));
-  line.addTo(drawnTrailLayer);
+  ].join('<br>');
 }
 
-function redrawDrawnTrails() {
-  drawnTrailLayer.clearLayers();
-  state.drawnTrails.forEach(addDrawnTrail);
+function addTrailLine(trail, layer, options) {
+  const line = L.polyline(trail.points.map(toLatLng), options);
+  line.bindPopup(trailPopup(trail));
+  line.addTo(layer);
+}
+
+function redrawWorkOverlays() {
+  mowingLayer.clearLayers();
+  sprayingLayer.clearLayers();
+  dailyTravelLayer.clearLayers();
+  untaggedTrailLayer.clearLayers();
+
+  for (const trail of state.drawnTrails) {
+    let shown = false;
+    if (trail.overlays.mowing && el.showMowingCheck.checked) {
+      addTrailLine(trail, mowingLayer, { weight: 8, opacity: 0.55, color: '#22c55e' });
+      shown = true;
+    }
+    if (trail.overlays.spraying && el.showSprayingCheck.checked) {
+      addTrailLine(trail, sprayingLayer, { weight: 5, opacity: 0.88, color: '#a855f7', dashArray: '10 7' });
+      shown = true;
+    }
+    if (trail.overlays.dailyTravel && el.showDailyTravelCheck.checked) {
+      addTrailLine(trail, dailyTravelLayer, { weight: 3, opacity: 0.95, color: '#facc15', dashArray: '3 8' });
+      shown = true;
+    }
+    if (!trail.overlays.mowing && !trail.overlays.spraying && !trail.overlays.dailyTravel && !shown) {
+      addTrailLine(trail, untaggedTrailLayer, { weight: 4, opacity: 0.75, color: '#94a3b8' });
+    }
+  }
 }
 
 function escapeHtml(value) {
@@ -760,7 +862,7 @@ function initSavedLayers() {
   trackLayer.setLatLngs(state.track.map(toLatLng));
   state.waypoints.forEach(addWaypointMarker);
   redrawAssets();
-  redrawDrawnTrails();
+  redrawWorkOverlays();
   const latLngs = [
     ...state.track.map(toLatLng),
     ...state.waypoints.map(toLatLng),
@@ -899,23 +1001,25 @@ function finishDrawMode() {
 
   const estimateText = window.prompt('Estimated minutes to clear/drive/work this stretch:', '');
   const estimatedMinutes = estimateText === null || estimateText.trim() === '' ? null : Number(estimateText);
+  const overlays = selectedTrailOverlays();
 
   const trail = {
     id: `trail-${Date.now()}`,
     name: name.trim() || defaultName,
     mode: drawMode || 'point',
     zoneId: selectedZoneId(),
+    overlays,
     estimatedMinutes: Number.isFinite(estimatedMinutes) ? estimatedMinutes : null,
     timestamp: Date.now(),
     points: normalizeTrack(activeDrawPoints)
   };
 
   state.drawnTrails.push(trail);
-  addDrawnTrail(trail);
+  redrawWorkOverlays();
   updateTrailSelect();
   updateCounts();
   updateZoneSummary();
-  saveRecord('Trail', trail.name, `Estimated ${minutesLabel(trail.estimatedMinutes)} • ${trail.points.length} points`, trail.zoneId);
+  saveRecord('Trail', trail.name, `${overlayLabelList(trail.overlays).join(' + ')} • Estimated ${minutesLabel(trail.estimatedMinutes)} • ${trail.points.length} points`, trail.zoneId);
   cancelDrawMode();
   setStatus('Drawn trail saved', 'ok');
 }
@@ -983,6 +1087,7 @@ function addAssetAtCurrentLocation() {
     zoneId: selectedZoneId(),
     name: name.trim() || defaultName,
     notes,
+    needsClearing: Boolean(el.assetNeedsClearingCheck.checked),
     lat: point.lat,
     lng: point.lng,
     timestamp: Date.now(),
@@ -990,10 +1095,10 @@ function addAssetAtCurrentLocation() {
   };
 
   state.assets.push(asset);
-  addAssetMarker(asset);
+  redrawAssets();
   updateCounts();
   updateZoneSummary();
-  saveRecord('Asset', asset.name, `${labelFor(ASSET_TYPES, asset.type)}${asset.notes ? ` • ${asset.notes}` : ''}`, asset.zoneId);
+  saveRecord('Asset', asset.name, `${labelFor(ASSET_TYPES, asset.type)}${asset.needsClearing ? ' • Needs clearing' : ''}${asset.notes ? ` • ${asset.notes}` : ''}`, asset.zoneId);
   setStatus('Asset marker saved', 'ok');
 }
 
@@ -1060,7 +1165,7 @@ function stopWorkTimer() {
   activeWork = null;
   el.startWorkBtn.disabled = false;
   el.stopWorkBtn.disabled = true;
-  redrawDrawnTrails();
+  redrawWorkOverlays();
   updateZoneSummary();
   setStatus(`Work saved: ${minutesLabel(durationMinutes)}`, 'ok');
 }
@@ -1081,7 +1186,7 @@ function addManualLogNote() {
     durationMinutes: Number.isFinite(durationMinutes) ? durationMinutes : null,
     notes
   });
-  redrawDrawnTrails();
+  redrawWorkOverlays();
   saveRecord('Log', labelFor(WORK_TYPES, selectedWorkType()), `${minutesLabel(durationMinutes)} • ${notes}`, zoneId);
   setStatus('Log note saved', 'ok');
 }
@@ -1130,6 +1235,11 @@ el.clearTrackBtn.addEventListener('click', () => {
   setStatus('GPS track cleared', 'warn');
 });
 
+[el.showMowingCheck, el.showSprayingCheck, el.showDailyTravelCheck].forEach((checkbox) => {
+  checkbox.addEventListener('change', redrawWorkOverlays);
+});
+el.showClearingCheck.addEventListener('change', redrawAssets);
+
 el.zoneSelect.addEventListener('change', () => {
   updateTrailSelect();
   updateZoneSummary();
@@ -1151,7 +1261,7 @@ el.clearDrawnBtn.addEventListener('click', () => {
   if (!state.drawnTrails.length) return;
   if (!window.confirm('Clear all manually drawn trails from this browser? GPS track, assets, logs, and waypoints will stay.')) return;
   state.drawnTrails = [];
-  drawnTrailLayer.clearLayers();
+  redrawWorkOverlays();
   updateTrailSelect();
   updateCounts();
   saveState();
