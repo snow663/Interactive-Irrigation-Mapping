@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'interactive-irrigation-map-v12';
+const CACHE_VERSION = 'interactive-irrigation-map-v13';
 const APP_SHELL = [
   './',
   './index.html',
