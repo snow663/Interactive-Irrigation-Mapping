@@ -10,7 +10,7 @@ The app now has a hard split between **Admin definition mode** and **Field opera
 
 Use `admin.html` to create and correct locked map definitions:
 
-- Map coverage boundary
+- Map coverage boundary / page edge
 - Zones
 - Zone boundaries
 - Trails / O/M roads
@@ -53,15 +53,18 @@ Hard rules:
 - Field UI must show whether records are synced or still pending cloud upload.
 - Backup ZIP export/import is a recovery/archive/manual-transfer layer, not the normal data-storage path.
 
-## Map coverage boundary
+## Map coverage boundary / page edge
 
-The special zone `map-coverage` defines the field map coverage boundary.
+The special zone `map-coverage` defines the field map page edge.
 
-- It is selectable/editable in Admin like a normal zone.
+Think of it as the edge of the paper: everything useful should be inside it, and the field app should avoid showing more map than needed outside it.
+
+- It is selectable/editable in Admin like a zone.
 - It should contain all Ride zones.
-- It is drawn as a boundary layer in Field mode.
+- It is drawn as the outside boundary in Field mode.
 - It is not used as a normal work/logging zone in Field mode.
-- Field map pan/zoom is constrained to the rectangular bounds of this zone.
+- Field map panning is constrained to this boundary.
+- Field map zoom-out is constrained so the phone cannot keep zooming out into unnecessary outside-map area.
 
 The prototype default coverage boundary is intentionally broad. Redraw `map-coverage` in Admin once the real district coverage area is known.
 
@@ -108,23 +111,6 @@ https://snow663.github.io/Interactive-Irrigation-Mapping/admin.html
 
 ## Admin JSON formats
 
-### Map coverage zone
-
-```json
-{
-  "id": "map-coverage",
-  "name": "Map Coverage Boundary",
-  "type": "coverage",
-  "notes": "Large selectable admin-defined boundary containing all ride zones.",
-  "boundary": [
-    { "lat": 44.9, "lng": -104.25 },
-    { "lat": 44.9, "lng": -103.45 },
-    { "lat": 44.45, "lng": -103.45 },
-    { "lat": 44.45, "lng": -104.25 }
-  ]
-}
-```
-
 ### Zone
 
 ```json
@@ -141,6 +127,25 @@ https://snow663.github.io/Interactive-Irrigation-Mapping/admin.html
 ```
 
 Boundary is optional. Use three or more points to draw a polygon.
+
+### Map coverage / page edge zone
+
+```json
+{
+  "id": "map-coverage",
+  "name": "Map Coverage Boundary",
+  "type": "coverage",
+  "notes": "Outer map page edge",
+  "boundary": [
+    { "lat": 45.2, "lng": -104.35 },
+    { "lat": 45.2, "lng": -102.95 },
+    { "lat": 44.05, "lng": -102.95 },
+    { "lat": 44.05, "lng": -104.35 }
+  ]
+}
+```
+
+Use this as the outer map extent. Keep it large enough to contain all normal Ride zones, but tight enough that the field app does not waste screen space on irrelevant map area.
 
 ### Trail / O/M road
 
@@ -220,6 +225,7 @@ service-worker.js                  Offline shell and tile cache
 data/definitions.json              Prototype shared map definitions
 assets/icon.svg                    App icon
 docs/FIREBASE_ARCHITECTURE.md      Locked production architecture plan
+src/map-extent.js                  Field map page-edge zoom helper
 src/field-sync.js                  Prototype definition bootstrap sync
 src/app.js                         Field map, GPS, overlays, logistics, operations logging
 src/admin.js                       Admin editor, GitHub sync, and recent-list editor
