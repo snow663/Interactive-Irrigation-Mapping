@@ -1,6 +1,6 @@
 # Interactive Irrigation Mapping
 
-Portable web-based GPS and operations mapping for Android and desktop field use. It is a static site, so there is no build step and no backend server.
+Portable web-based GPS and operations mapping for Android and desktop field use. It is currently a static prototype with no build step and no backend server.
 
 ## Current model
 
@@ -36,6 +36,21 @@ Use `index.html` for daily work. Field mode can:
 - Add operational log notes
 
 Field mode does **not** create, edit, or delete zones, trails, or markers. That prevents accidental map-definition changes while working.
+
+## Locked target architecture
+
+The long-term production target is documented in [`docs/FIREBASE_ARCHITECTURE.md`](./docs/FIREBASE_ARCHITECTURE.md).
+
+Hard rules:
+
+- GitHub is the source of code, documentation, deployment workflows, and optional seed/backup scripts.
+- Firebase Hosting is the intended production hosting target.
+- Firestore is the durable shared source of record for live field data.
+- Local storage / IndexedDB is a fast-load cache, offline working copy, and pending-write outbox.
+- Local cache is not the only reliable storage plan.
+- New field data must be saved locally immediately when applied on the page, queued immediately, and pushed to Firestore as soon as the device is online, authenticated, and allowed to write.
+- Field UI must show whether records are synced or still pending cloud upload.
+- Backup ZIP export/import is a recovery/archive/manual-transfer layer, not the normal data-storage path.
 
 ## Work overlays
 
@@ -155,9 +170,11 @@ For best results:
 - Flag daily rider travel roads with **Daily rider travel**.
 - Log work time when finished so the average-time estimate improves.
 
-## Important storage note
+## Prototype storage note
 
-All data is stored in browser local storage on that device. Another phone or PC will not automatically have the same data unless you recreate it there or later add sync/import/export. Clearing browser data can remove definitions, tracks, logs, zone status, and recent entries.
+The current static prototype still uses browser storage and GitHub JSON files. In this prototype stage, another phone or PC will not automatically have the same live field activity unless sync/import/export is used.
+
+The locked production direction is different: Firestore becomes the shared source of record, and local browser storage becomes only a fast-load/offline cache and pending-write queue.
 
 ## Spraying note
 
@@ -166,14 +183,17 @@ The app has a spraying overlay and spraying work type for local recall/logging. 
 ## File layout
 
 ```text
-index.html                  Locked field operations app
-admin.html                  Admin definition editor and recent-list maintenance
-manifest.webmanifest        PWA install metadata
-service-worker.js           Offline shell and tile cache
-assets/icon.svg             App icon
-src/app.js                  Field map, GPS, overlays, logistics, operations logging
-src/admin.js                Admin JSON definition editor and recent-list editor
-src/style.css               Mobile/desktop responsive layout
+index.html                         Locked field operations app
+admin.html                         Admin definition editor and recent-list maintenance
+manifest.webmanifest               PWA install metadata
+service-worker.js                  Offline shell and tile cache
+data/definitions.json              Prototype shared map definitions
+assets/icon.svg                    App icon
+docs/FIREBASE_ARCHITECTURE.md      Locked production architecture plan
+src/field-sync.js                  Prototype definition bootstrap sync
+src/app.js                         Field map, GPS, overlays, logistics, operations logging
+src/admin.js                       Admin editor, GitHub sync, and recent-list editor
+src/style.css                      Mobile/desktop responsive layout
 ```
 
 ## Local testing
