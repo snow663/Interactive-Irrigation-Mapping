@@ -48,12 +48,12 @@ function normalizeTrailFlags(t = {}) { return { omRoad: Boolean(t.flags?.omRoad 
 function normalizeTrails(trails = [], zones = normalizeZones()) {
   const validZone = new Set(zones.map((z) => z.id));
   const fallback = zones[0]?.id || 'ride1';
-  return trails.map((t, i) => ({ id: String(t.id || `trail-${Date.now()}-${i}`), name: String(t.name || `Trail ${i + 1}`), zoneId: validZone.has(t.zoneId) ? t.zoneId : fallback, overlays: normalizeTrailOverlays(t), flags: normalizeTrailFlags(t), estimatedMinutes: Number.isFinite(Number(t.estimatedMinutes)) ? Number(t.estimatedMinutes) : null, notes: String(t.notes || ''), points: normalizePointList(t.points || []) })).filter((t) => t.name && t.points.length >= 2);
+  return trails.map((t, i) => ({ id: String(t.id || `trail-${Date.now()}-${i}`), name: String(t.name || `Trail ${i + 1}`).trim(), zoneId: validZone.has(t.zoneId) ? t.zoneId : fallback, overlays: normalizeTrailOverlays(t), flags: normalizeTrailFlags(t), estimatedMinutes: Number.isFinite(Number(t.estimatedMinutes)) ? Number(t.estimatedMinutes) : null, notes: String(t.notes || ''), points: normalizePointList(t.points || []) })).filter((t) => t.name && t.points.length >= 2);
 }
 function normalizeMarkers(markers = [], zones = normalizeZones()) {
   const validZone = new Set(zones.map((z) => z.id));
   const fallback = zones[0]?.id || 'ride1';
-  return markers.map((m, i) => { const point = normalizePoint(m); const type = ASSET_TYPES.has(m.type) ? m.type : 'note'; return point ? { id: String(m.id || `marker-${Date.now()}-${i}`), name: String(m.name || `Marker ${i + 1}`), type, zoneId: validZone.has(m.zoneId) ? m.zoneId : fallback, lat: point.lat, lng: point.lng, needsBrush: Boolean(m.needsBrush ?? m.needsClearing ?? DEFAULT_BRUSH_TYPES.has(type)), notes: String(m.notes || '') } : null; }).filter(Boolean);
+  return markers.map((m, i) => { const point = normalizePoint(m); const type = ASSET_TYPES.has(m.type) ? m.type : 'note'; return point ? { id: String(m.id || `marker-${Date.now()}-${i}`), name: String(m.name || `Marker ${i + 1}`).trim(), type, zoneId: validZone.has(m.zoneId) ? m.zoneId : fallback, lat: point.lat, lng: point.lng, needsBrush: Boolean(m.needsBrush ?? m.needsClearing ?? DEFAULT_BRUSH_TYPES.has(type)), notes: String(m.notes || '') } : null; }).filter((m) => m.id && m.name);
 }
 function normalizeRecentSaves(items = [], zones = normalizeZones()) {
   const validZone = new Set(zones.map((z) => z.id));
@@ -62,13 +62,6 @@ function normalizeRecentSaves(items = [], zones = normalizeZones()) {
 function normalizeState(raw = {}) {
   const zones = normalizeZones(raw.zones);
   return { zones, drawnTrails: normalizeTrails(raw.drawnTrails || raw.trails || [], zones), assets: normalizeMarkers(raw.assets || raw.markers || [], zones), logs: Array.isArray(raw.logs) ? raw.logs : [], zoneStatus: raw.zoneStatus || {}, recentSaves: normalizeRecentSaves(raw.recentSaves || [], zones), track: Array.isArray(raw.track) ? raw.track : [] };
-}
-function definitionsPayload() { return { version: 1, updatedAt: new Date().toISOString(), zones: state.zones, drawnTrails: state.drawnTrails, assets: state.assets }; }
-function applyDefinitions(definitions) {
-  const normalized = normalizeState({ ...state, zones: definitions.zones || [], drawnTrails: definitions.drawnTrails || definitions.trails || [], assets: definitions.assets || definitions.markers || [] });
-  state = { ...state, zones: normalized.zones, drawnTrails: normalized.drawnTrails, assets: normalized.assets };
-  saveState(state);
-  syncAllViews();
 }
 function loadState() {
   let key = STORAGE_KEY;
@@ -80,14 +73,22 @@ function loadState() {
   }
   return { key, state: normalizeState(raw || {}) };
 }
-function saveState(nextState) { localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizeState(nextState))); }
+function saveState(nextState = state) { localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizeState(nextState))); }
+function definitionsPayload() { return { version: 1, updatedAt: new Date().toISOString(), zones: state.zones, drawnTrails: state.drawnTrails, assets: state.assets }; }
+function applyDefinitions(definitions) {
+  const normalized = normalizeState({ ...state, zones: definitions.zones || [], drawnTrails: definitions.drawnTrails || definitions.trails || [], assets: definitions.assets || definitions.markers || [] });
+  state = { ...state, zones: normalized.zones, drawnTrails: normalized.drawnTrails, assets: normalized.assets };
+  syncAllViews();
+}
 function setDefinitionStatus(message) { el.definitionStatus.innerHTML = message; }
 function setSyncStatus(message, isError = false) { el.syncStatus.innerHTML = isError ? `<strong>Sync error:</strong> ${escapeHtml(message)}` : message; }
 
 function populateSelect(select, options, emptyText = '') {
+  const previous = select.value;
   select.innerHTML = '';
   if (emptyText) { const empty = document.createElement('option'); empty.value = ''; empty.textContent = emptyText; select.append(empty); }
   for (const [value, label] of options) { const option = document.createElement('option'); option.value = value; option.textContent = label; select.append(option); }
+  if ([...select.options].some((o) => o.value === previous)) select.value = previous;
 }
 function zoneLabel(zoneId) { return state.zones.find((z) => z.id === zoneId)?.name || zoneId || 'No zone'; }
 function refreshSelects() {
@@ -133,9 +134,10 @@ function fitDefinedBounds() {
   const latLngs = [...state.zones.flatMap((z) => z.boundary), ...state.drawnTrails.flatMap((t) => t.points), ...state.assets.map((m) => ({ lat: m.lat, lng: m.lng }))].map((p) => [p.lat, p.lng]);
   if (latLngs.length) adminMap.fitBounds(L.latLngBounds(latLngs), { padding: [24,24], maxZoom: 15 });
 }
-function setTool(tool) {
-  activeTool = activeTool === tool ? null : tool;
-  draftPoints = [];
+function setActiveTool(tool, { clearDraft = true, toggle = false } = {}) {
+  const nextTool = toggle && activeTool === tool ? null : tool;
+  activeTool = nextTool;
+  if (clearDraft) draftPoints = [];
   el.drawZoneBtn.classList.toggle('active', activeTool === 'zone');
   el.drawTrailBtn.classList.toggle('active', activeTool === 'trail');
   el.dropMarkerBtn.classList.toggle('active', activeTool === 'marker');
@@ -153,7 +155,10 @@ adminMap.on('click', (event) => {
 function selectedZone() { return state.zones.find((z) => z.id === el.zoneAdminSelect.value); }
 function selectedTrail() { return state.drawnTrails.find((t) => t.id === el.trailAdminSelect.value); }
 function selectedMarker() { return state.assets.find((m) => m.id === el.markerAdminSelect.value); }
-function loadZone(zone = selectedZone()) { if (!zone) { el.zoneIdInput.value = ''; el.zoneNameInput.value = ''; el.zoneNotesInput.value = ''; draftPoints = []; return drawDraft(); } el.zoneIdInput.value = zone.id; el.zoneNameInput.value = zone.name; el.zoneNotesInput.value = zone.notes || ''; draftPoints = [...zone.boundary]; activeTool = 'zone'; setTool('zone'); activeTool = 'zone'; el.drawZoneBtn.classList.add('active'); draftPoints = [...zone.boundary]; drawDefinitions(); }
+function loadZone(zone = selectedZone()) {
+  if (!zone) { el.zoneIdInput.value = ''; el.zoneNameInput.value = ''; el.zoneNotesInput.value = ''; draftPoints = []; setActiveTool('zone', { clearDraft: false }); return; }
+  el.zoneIdInput.value = zone.id; el.zoneNameInput.value = zone.name; el.zoneNotesInput.value = zone.notes || ''; draftPoints = [...zone.boundary]; setActiveTool('zone', { clearDraft: false });
+}
 function saveZone() {
   const existingId = el.zoneAdminSelect.value;
   const id = slug(el.zoneIdInput.value, `zone-${state.zones.length + 1}`);
@@ -162,19 +167,21 @@ function saveZone() {
   const zone = { id, name, notes: el.zoneNotesInput.value.trim(), boundary: draftPoints.length >= 3 ? [...draftPoints] : (existing?.boundary || []) };
   state.zones = state.zones.filter((z) => z.id !== existingId && z.id !== id);
   state.zones.push(zone);
-  syncAllViews();
-  el.zoneAdminSelect.value = id;
-  loadZone(zone);
+  syncAllViews(); el.zoneAdminSelect.value = id; loadZone(zone);
 }
 function deleteZone() {
   const zone = selectedZone();
   if (!zone) return;
   if (!window.confirm(`Delete zone ${zone.name}? Trails/markers assigned to it will move to the first remaining zone.`)) return;
   state.zones = state.zones.filter((z) => z.id !== zone.id);
-  state = normalizeState(state);
-  syncAllViews();
+  state = normalizeState(state); draftPoints = []; syncAllViews();
 }
-function loadTrail(trail = selectedTrail()) { if (!trail) { el.trailIdInput.value = ''; el.trailNameInput.value = ''; el.trailMinutesInput.value = ''; el.trailNotesInput.value = ''; draftPoints = []; return drawDraft(); } el.trailIdInput.value = trail.id; el.trailNameInput.value = trail.name; el.trailZoneSelect.value = trail.zoneId; el.trailMinutesInput.value = Number.isFinite(trail.estimatedMinutes) ? trail.estimatedMinutes : ''; el.trailNotesInput.value = trail.notes || ''; el.trailMowingAdminCheck.checked = trail.overlays.mowing; el.trailSprayingAdminCheck.checked = trail.overlays.spraying; el.trailOmAdminCheck.checked = trail.flags.omRoad; el.trailDailyAdminCheck.checked = trail.flags.dailyTravel; draftPoints = [...trail.points]; activeTool = 'trail'; setTool('trail'); activeTool = 'trail'; el.drawTrailBtn.classList.add('active'); draftPoints = [...trail.points]; drawDefinitions(); }
+function loadTrail(trail = selectedTrail()) {
+  if (!trail) { el.trailIdInput.value = ''; el.trailNameInput.value = ''; el.trailMinutesInput.value = ''; el.trailNotesInput.value = ''; draftPoints = []; setActiveTool('trail', { clearDraft: false }); return; }
+  el.trailIdInput.value = trail.id; el.trailNameInput.value = trail.name; el.trailZoneSelect.value = trail.zoneId; el.trailMinutesInput.value = Number.isFinite(trail.estimatedMinutes) ? trail.estimatedMinutes : ''; el.trailNotesInput.value = trail.notes || '';
+  el.trailMowingAdminCheck.checked = trail.overlays.mowing; el.trailSprayingAdminCheck.checked = trail.overlays.spraying; el.trailOmAdminCheck.checked = trail.flags.omRoad; el.trailDailyAdminCheck.checked = trail.flags.dailyTravel;
+  draftPoints = [...trail.points]; setActiveTool('trail', { clearDraft: false });
+}
 function saveTrail() {
   const existingId = el.trailAdminSelect.value;
   const id = slug(el.trailIdInput.value || el.trailNameInput.value, `trail-${state.drawnTrails.length + 1}`);
@@ -185,12 +192,13 @@ function saveTrail() {
   const trail = { id, name, zoneId: el.trailZoneSelect.value || state.zones[0]?.id || 'ride1', overlays: { mowing: el.trailMowingAdminCheck.checked, spraying: el.trailSprayingAdminCheck.checked }, flags: { omRoad: el.trailOmAdminCheck.checked, dailyTravel: el.trailDailyAdminCheck.checked }, estimatedMinutes: Number.isFinite(Number(el.trailMinutesInput.value)) ? Number(el.trailMinutesInput.value) : null, notes: el.trailNotesInput.value.trim(), points };
   state.drawnTrails = state.drawnTrails.filter((t) => t.id !== existingId && t.id !== id);
   state.drawnTrails.push(trail);
-  syncAllViews();
-  el.trailAdminSelect.value = id;
-  loadTrail(trail);
+  syncAllViews(); el.trailAdminSelect.value = id; loadTrail(trail);
 }
 function deleteTrail() { const trail = selectedTrail(); if (!trail) return; if (!window.confirm(`Delete trail ${trail.name}?`)) return; state.drawnTrails = state.drawnTrails.filter((t) => t.id !== trail.id); draftPoints = []; syncAllViews(); }
-function loadMarker(marker = selectedMarker()) { if (!marker) { el.markerIdInput.value = ''; el.markerNameInput.value = ''; el.markerLatInput.value = ''; el.markerLngInput.value = ''; el.markerNotesInput.value = ''; return drawDraft(); } el.markerIdInput.value = marker.id; el.markerNameInput.value = marker.name; el.markerTypeSelect.value = marker.type; el.markerZoneSelect.value = marker.zoneId; el.markerLatInput.value = marker.lat; el.markerLngInput.value = marker.lng; el.markerBrushCheck.checked = marker.needsBrush; el.markerNotesInput.value = marker.notes || ''; activeTool = 'marker'; setTool('marker'); activeTool = 'marker'; el.dropMarkerBtn.classList.add('active'); drawDefinitions(); }
+function loadMarker(marker = selectedMarker()) {
+  if (!marker) { el.markerIdInput.value = ''; el.markerNameInput.value = ''; el.markerLatInput.value = ''; el.markerLngInput.value = ''; el.markerNotesInput.value = ''; setActiveTool('marker', { clearDraft: true }); return; }
+  el.markerIdInput.value = marker.id; el.markerNameInput.value = marker.name; el.markerTypeSelect.value = marker.type; el.markerZoneSelect.value = marker.zoneId; el.markerLatInput.value = marker.lat; el.markerLngInput.value = marker.lng; el.markerBrushCheck.checked = marker.needsBrush; el.markerNotesInput.value = marker.notes || ''; setActiveTool('marker', { clearDraft: false });
+}
 function saveMarker() {
   const lat = Number(el.markerLatInput.value), lng = Number(el.markerLngInput.value);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return alert('A marker needs latitude and longitude. Use Drop Marker and click the map, or type coordinates.');
@@ -199,21 +207,17 @@ function saveMarker() {
   const marker = { id, name: el.markerNameInput.value.trim() || id, type: el.markerTypeSelect.value || 'note', zoneId: el.markerZoneSelect.value || state.zones[0]?.id || 'ride1', lat, lng, needsBrush: el.markerBrushCheck.checked, notes: el.markerNotesInput.value.trim() };
   state.assets = state.assets.filter((m) => m.id !== existingId && m.id !== id);
   state.assets.push(marker);
-  syncAllViews();
-  el.markerAdminSelect.value = id;
-  loadMarker(marker);
+  syncAllViews(); el.markerAdminSelect.value = id; loadMarker(marker);
 }
 function deleteMarker() { const marker = selectedMarker(); if (!marker) return; if (!window.confirm(`Delete marker ${marker.name}?`)) return; state.assets = state.assets.filter((m) => m.id !== marker.id); syncAllViews(); }
 
 function parseEditor(text, label) { const value = JSON.parse(text || '[]'); if (!Array.isArray(value)) throw new Error(`${label} must be a JSON array.`); return value; }
 function saveDefinitionsFromJson() {
   try {
-    const zones = normalizeZones(parseEditor(el.zonesJson.value, 'Zones'));
-    const trails = normalizeTrails(parseEditor(el.trailsJson.value, 'Trails'), zones);
-    const markers = normalizeMarkers(parseEditor(el.markersJson.value, 'Markers'), zones);
-    state = { ...state, zones, drawnTrails: trails, assets: markers };
-    syncAllViews();
-    setDefinitionStatus('Definitions saved from JSON backup editor.');
+    state = { ...state, zones: normalizeZones(parseEditor(el.zonesJson.value, 'Zones')) };
+    state.drawnTrails = normalizeTrails(parseEditor(el.trailsJson.value, 'Trails'), state.zones);
+    state.assets = normalizeMarkers(parseEditor(el.markersJson.value, 'Markers'), state.zones);
+    syncAllViews(); setDefinitionStatus('Definitions saved from JSON backup editor.');
   } catch (error) { setDefinitionStatus(`<strong>Definition save failed:</strong> ${escapeHtml(error.message)}`); }
 }
 
@@ -221,39 +225,33 @@ function getToken() { return el.tokenInput.value.trim() || localStorage.getItem(
 function saveToken() { const token = el.tokenInput.value.trim(); if (!token) return setSyncStatus('No token entered.', true); if (el.saveTokenCheck.checked) { localStorage.setItem(TOKEN_KEY, token); setSyncStatus('Token saved locally on this device.'); } else setSyncStatus('Token is loaded for this page session only. Check “Keep token” to store it locally.'); }
 function forgetToken() { localStorage.removeItem(TOKEN_KEY); el.tokenInput.value = ''; el.saveTokenCheck.checked = false; setSyncStatus('Token removed from this browser.'); }
 function githubApiUrl() { const repo = el.repoInput.value.trim(); const path = el.pathInput.value.trim().replace(/^\/+/, ''); const branch = encodeURIComponent(el.branchInput.value.trim() || 'main'); return `https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}`; }
+function githubPutUrl() { const repo = el.repoInput.value.trim(); const path = el.pathInput.value.trim().replace(/^\/+/, ''); return `https://api.github.com/repos/${repo}/contents/${path}`; }
 function githubHeaders(requireToken = false) { const headers = { Accept: 'application/vnd.github+json' }; const token = getToken(); if (token) headers.Authorization = `Bearer ${token}`; if (requireToken && !token) throw new Error('A GitHub token is required to push.'); return headers; }
-function decodeBase64Unicode(value) { return decodeURIComponent(escape(atob(value.replace(/\n/g, '')))); }
-function encodeBase64Unicode(value) { return btoa(unescape(encodeURIComponent(value))); }
+function decodeBase64Unicode(value) { const binary = atob(value.replace(/\s/g, '')); const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0)); return new TextDecoder().decode(bytes); }
+function encodeBase64Unicode(value) { const bytes = new TextEncoder().encode(value); let binary = ''; for (const b of bytes) binary += String.fromCharCode(b); return btoa(binary); }
 async function pullFromGithub() {
   try {
     setSyncStatus('Pulling definitions from GitHub...');
     const response = await fetch(githubApiUrl(), { headers: githubHeaders(false) });
     if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-    const file = await response.json();
-    definitionSha = file.sha || '';
+    const file = await response.json(); definitionSha = file.sha || '';
     const definitions = JSON.parse(decodeBase64Unicode(file.content || ''));
-    applyDefinitions(definitions);
+    applyDefinitions(definitions); fitDefinedBounds();
     setSyncStatus(`Pulled <strong>${escapeHtml(el.pathInput.value)}</strong> from GitHub. SHA ${escapeHtml(definitionSha.slice(0, 7))}.`);
-    fitDefinedBounds();
   } catch (error) { setSyncStatus(error.message, true); }
 }
 async function pushToGithub() {
   try {
-    const token = getToken();
-    if (!token) throw new Error('Paste a GitHub token first.');
-    saveState(state);
-    setSyncStatus('Preparing push to GitHub...');
+    if (!getToken()) throw new Error('Paste a GitHub token first.');
+    saveState(state); setSyncStatus('Preparing push to GitHub...');
     const getResponse = await fetch(githubApiUrl(), { headers: githubHeaders(false) });
     let sha = definitionSha;
     if (getResponse.ok) sha = (await getResponse.json()).sha;
-    const path = el.pathInput.value.trim().replace(/^\/+/, '');
-    const putUrl = `https://api.github.com/repos/${el.repoInput.value.trim()}/contents/${path}`;
     const payload = { message: 'Update irrigation map definitions', branch: el.branchInput.value.trim() || 'main', content: encodeBase64Unicode(pretty(definitionsPayload())) };
     if (sha) payload.sha = sha;
-    const putResponse = await fetch(putUrl, { method: 'PUT', headers: { ...githubHeaders(true), 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const putResponse = await fetch(githubPutUrl(), { method: 'PUT', headers: { ...githubHeaders(true), 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     if (!putResponse.ok) throw new Error(`${putResponse.status} ${putResponse.statusText}: ${await putResponse.text()}`);
-    const result = await putResponse.json();
-    definitionSha = result.content?.sha || '';
+    const result = await putResponse.json(); definitionSha = result.content?.sha || '';
     setSyncStatus(`Pushed definitions to GitHub. Commit <strong>${escapeHtml((result.commit?.sha || '').slice(0, 7))}</strong>.`);
   } catch (error) { setSyncStatus(error.message, true); }
 }
@@ -271,35 +269,22 @@ function renderRecent() {
 function updateRecentEntry(index) { const item = state.recentSaves[index]; if (!item) return; for (const field of ['type','title','zoneId','details']) { const input = document.querySelector(`[data-field="${field}"][data-index="${index}"]`); if (input) item[field] = input.value; } syncAllViews(); }
 function deleteRecentEntry(index) { if (!state.recentSaves[index]) return; if (!window.confirm('Delete this Last 10 saved entry? Map definitions and logs are not deleted.')) return; state.recentSaves.splice(index, 1); syncAllViews(); }
 
-el.drawZoneBtn.addEventListener('click', () => setTool('zone'));
-el.drawTrailBtn.addEventListener('click', () => setTool('trail'));
-el.dropMarkerBtn.addEventListener('click', () => setTool('marker'));
+el.drawZoneBtn.addEventListener('click', () => setActiveTool('zone', { toggle: true }));
+el.drawTrailBtn.addEventListener('click', () => setActiveTool('trail', { toggle: true }));
+el.dropMarkerBtn.addEventListener('click', () => setActiveTool('marker', { toggle: true }));
 el.undoAdminPointBtn.addEventListener('click', () => { draftPoints.pop(); drawDraft(); });
 el.clearAdminDraftBtn.addEventListener('click', () => { draftPoints = []; drawDraft(); });
-el.loadZoneBtn.addEventListener('click', () => loadZone());
-el.saveZoneBtn.addEventListener('click', saveZone);
-el.deleteZoneBtn.addEventListener('click', deleteZone);
-el.loadTrailBtn.addEventListener('click', () => loadTrail());
-el.saveTrailBtn.addEventListener('click', saveTrail);
-el.deleteTrailBtn.addEventListener('click', deleteTrail);
-el.loadMarkerBtn.addEventListener('click', () => loadMarker());
-el.saveMarkerBtn.addEventListener('click', saveMarker);
-el.deleteMarkerBtn.addEventListener('click', deleteMarker);
-el.saveDefinitionsBtn.addEventListener('click', saveDefinitionsFromJson);
-el.reloadDefinitionsBtn.addEventListener('click', syncJsonEditors);
-el.saveTokenBtn.addEventListener('click', saveToken);
-el.forgetTokenBtn.addEventListener('click', forgetToken);
-el.pullGithubBtn.addEventListener('click', pullFromGithub);
-el.pushGithubBtn.addEventListener('click', pushToGithub);
+el.loadZoneBtn.addEventListener('click', () => loadZone()); el.saveZoneBtn.addEventListener('click', saveZone); el.deleteZoneBtn.addEventListener('click', deleteZone);
+el.loadTrailBtn.addEventListener('click', () => loadTrail()); el.saveTrailBtn.addEventListener('click', saveTrail); el.deleteTrailBtn.addEventListener('click', deleteTrail);
+el.loadMarkerBtn.addEventListener('click', () => loadMarker()); el.saveMarkerBtn.addEventListener('click', saveMarker); el.deleteMarkerBtn.addEventListener('click', deleteMarker);
+el.saveDefinitionsBtn.addEventListener('click', saveDefinitionsFromJson); el.reloadDefinitionsBtn.addEventListener('click', syncJsonEditors);
+el.saveTokenBtn.addEventListener('click', saveToken); el.forgetTokenBtn.addEventListener('click', forgetToken); el.pullGithubBtn.addEventListener('click', pullFromGithub); el.pushGithubBtn.addEventListener('click', pushToGithub);
 el.recentAdminList.addEventListener('click', (event) => { const button = event.target.closest('button[data-action]'); if (!button) return; const index = Number(button.dataset.index); if (button.dataset.action === 'save') updateRecentEntry(index); if (button.dataset.action === 'delete') deleteRecentEntry(index); });
 el.clearRecentBtn.addEventListener('click', () => { if (!window.confirm('Clear the entire Last 10 saved list? Map definitions and logs are not deleted.')) return; state.recentSaves = []; syncAllViews(); });
 el.reloadAdminBtn.addEventListener('click', renderRecent);
 
 const savedToken = localStorage.getItem(TOKEN_KEY);
 if (savedToken) { el.tokenInput.value = savedToken; el.saveTokenCheck.checked = true; }
-refreshSelects();
-syncJsonEditors();
-drawDefinitions();
-renderRecent();
-fitDefinedBounds();
+refreshSelects(); syncJsonEditors(); drawDefinitions(); renderRecent(); fitDefinedBounds();
+setTimeout(() => adminMap.invalidateSize(), 100);
 setSyncStatus('Sync idle. Pull before editing on a different device; push when definitions are ready to publish.');
