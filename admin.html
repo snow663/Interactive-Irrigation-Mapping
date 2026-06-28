@@ -13,10 +13,29 @@
       <header class="admin-header">
         <div>
           <h1>Admin Maintenance</h1>
-          <p>Create and correct the locked map definitions used by field mode.</p>
+          <p>Create, correct, and synchronize the locked map definitions used by field mode.</p>
         </div>
         <a class="ghost link-button" href="./index.html">Back to map</a>
       </header>
+
+      <section class="admin-card sync-card">
+        <h2>GitHub sync</h2>
+        <p>Definitions sync to <code>data/definitions.json</code>. The token is never written to GitHub; it stays only in this browser when saved.</p>
+        <div class="field-grid">
+          <label>Repository<input id="repoInput" value="snow663/Interactive-Irrigation-Mapping" /></label>
+          <label>Branch<input id="branchInput" value="main" /></label>
+          <label>Definitions path<input id="pathInput" value="data/definitions.json" /></label>
+          <label>GitHub token<input id="tokenInput" type="password" autocomplete="off" placeholder="paste token here" /></label>
+          <label class="check-label"><input id="saveTokenCheck" type="checkbox" /> Keep token on this device</label>
+        </div>
+        <div class="controls">
+          <button id="saveTokenBtn">Save Token Locally</button>
+          <button id="forgetTokenBtn" class="danger">Forget Token</button>
+          <button id="pullGithubBtn">Pull from GitHub</button>
+          <button id="pushGithubBtn" class="primary">Push to GitHub</button>
+        </div>
+        <div id="syncStatus" class="logistics-output">Sync idle.</div>
+      </section>
 
       <section class="admin-card">
         <h2>Admin map editor</h2>
@@ -100,20 +119,9 @@
         </div>
       </section>
 
-      <section class="admin-card">
-        <h2>Zones JSON</h2>
-        <textarea id="zonesJson" spellcheck="false"></textarea>
-      </section>
-
-      <section class="admin-card">
-        <h2>Trails / O/M roads JSON</h2>
-        <textarea id="trailsJson" spellcheck="false"></textarea>
-      </section>
-
-      <section class="admin-card">
-        <h2>Markers / POIs / hazards JSON</h2>
-        <textarea id="markersJson" spellcheck="false"></textarea>
-      </section>
+      <section class="admin-card"><h2>Zones JSON</h2><textarea id="zonesJson" spellcheck="false"></textarea></section>
+      <section class="admin-card"><h2>Trails / O/M roads JSON</h2><textarea id="trailsJson" spellcheck="false"></textarea></section>
+      <section class="admin-card"><h2>Markers / POIs / hazards JSON</h2><textarea id="markersJson" spellcheck="false"></textarea></section>
 
       <section class="admin-card">
         <h2>Last 10 saved</h2>
@@ -125,10 +133,7 @@
       <section class="admin-card">
         <h2>Local storage maintenance</h2>
         <p>This only affects the browser/device you are using. It does not change another phone or computer.</p>
-        <div class="controls">
-          <button id="clearRecentBtn" class="danger">Clear Last 10 List</button>
-          <button id="reloadAdminBtn">Reload Recent</button>
-        </div>
+        <div class="controls"><button id="clearRecentBtn" class="danger">Clear Last 10 List</button><button id="reloadAdminBtn">Reload Recent</button></div>
       </section>
     </main>
 
