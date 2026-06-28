@@ -1,14 +1,27 @@
 const DEFAULT_CENTER = [44.6714, -103.8522];
 const DEFAULT_ZOOM = 13;
 const STORAGE_KEY = 'interactive-irrigation-map-v7';
-const LEGACY_KEYS = ['interactive-irrigation-map-v6','interactive-irrigation-map-v5','interactive-irrigation-map-v4','interactive-irrigation-map-v3','interactive-irrigation-map-v2','interactive-irrigation-map-v1'];
+const LEGACY_KEYS = ['interactive-irrigation-map-v8','interactive-irrigation-map-v6','interactive-irrigation-map-v5','interactive-irrigation-map-v4','interactive-irrigation-map-v3','interactive-irrigation-map-v2','interactive-irrigation-map-v1'];
 const MAX_TRACK_POINTS = 20000;
 const MAX_RECENT_SAVES = 10;
 const DEFAULT_FIELD_SPEED_MPH = 25;
 const EARTH_RADIUS_METERS = 6371008.8;
 const MPS_TO_MPH = 2.2369362921;
+const COVERAGE_ZONE_ID = 'map-coverage';
 
-const DEFAULT_ZONES = [['ride1','Ride 1'],['ride2','Ride 2'],['ride4','Ride 4'],['ride5','Ride 5'],['ride6','Ride 6'],['ride7','Ride 7'],['ride8','Ride 8'],['ride10','Ride 10']];
+const DEFAULT_COVERAGE_ZONE = {
+  id: COVERAGE_ZONE_ID,
+  name: 'Map Coverage Boundary',
+  type: 'coverage',
+  notes: 'Large admin-defined map coverage zone. Field map pan/zoom is constrained to this boundary.',
+  boundary: [
+    { lat: 44.900000, lng: -104.250000 },
+    { lat: 44.900000, lng: -103.450000 },
+    { lat: 44.450000, lng: -103.450000 },
+    { lat: 44.450000, lng: -104.250000 }
+  ]
+};
+const DEFAULT_WORK_ZONES = [['ride1','Ride 1'],['ride2','Ride 2'],['ride4','Ride 4'],['ride5','Ride 5'],['ride6','Ride 6'],['ride7','Ride 7'],['ride8','Ride 8'],['ride10','Ride 10']];
 const ASSET_TYPES = [['head-gate','Head gate'],['valve','Valve'],['box','Box'],['check','Check'],['culvert','Culvert'],['crossing','Crossing'],['washout','Washout'],['spray-area','Spray area'],['hazard','Hazard'],['problem','Problem spot'],['poi','POI'],['note','Note']];
 const WORK_TYPES = [['road-clearing','Road clearing'],['mowing','Mowing'],['spraying','Spraying'],['brush','Brush / POI / hazard cutting'],['scouting','Scouting / inspection'],['repair','Repair / maintenance'],['ditch-rider-support','Ditch rider support'],['drive-time','Drive time'],['other','Other']];
 const DEFAULT_BRUSH_TYPES = new Set(['head-gate','check','valve','washout','hazard','problem','poi']);
@@ -34,8 +47,9 @@ let wakeLock = null;
 let deferredInstallPrompt = null;
 let saveTimer = null;
 let activeWork = null;
+let applyingMapBounds = false;
 
-const map = L.map('map', { zoomControl: false, preferCanvas: true }).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
+const map = L.map('map', { zoomControl: false, preferCanvas: true, maxBoundsViscosity: 1.0 }).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 L.control.scale({ imperial: true, metric: true }).addTo(map);
 const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 20, attribution: '&copy; OpenStreetMap contributors' });
@@ -63,6 +77,17 @@ function toDegrees(radians) { return (radians * 180) / Math.PI; }
 function toLatLng(point) { return [point.lat, point.lng]; }
 function pointFromLatLng(latLng) { return { lat: latLng.lat, lng: latLng.lng }; }
 function sourcePoint() { return lastPoint || pointFromLatLng(map.getCenter()); }
+function isCoverageZone(zone) { return zone?.id === COVERAGE_ZONE_ID || zone?.type === 'coverage' || zone?.role === 'map-coverage'; }
+function coverageZone() { return state.zones.find(isCoverageZone) || null; }
+function workZones() { return state.zones.filter((zone) => !isCoverageZone(zone)); }
+function escapeHtml(value) { return String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;'); }
+function labelFor(list, value) { return list.find(([id]) => id === value)?.[1] || value || 'None'; }
+function zoneOptions() { const zones = workZones(); return zones.length ? zones.map((z) => [z.id, z.name]) : DEFAULT_WORK_ZONES; }
+function zoneLabel(zoneId) { const zone = state.zones.find((z) => z.id === zoneId); return zone?.name || labelFor(zoneOptions(), zoneId); }
+function selectedZoneId() { return el.zoneSelect.value || zoneOptions()[0]?.[0] || 'ride1'; }
+function selectedTrailId() { return el.trailSelect.value || ''; }
+function selectedWorkType() { return el.workTypeSelect.value || 'other'; }
+
 function distanceMeters(a, b) {
   const lat1 = toRadians(a.lat), lat2 = toRadians(b.lat), dLat = toRadians(b.lat - a.lat), dLng = toRadians(b.lng - a.lng);
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
@@ -78,40 +103,37 @@ function formatDistance(meters) { const feet = meters * 3.28084; return feet < 5
 function minutesLabel(minutes) { if (!Number.isFinite(minutes)) return '--'; if (minutes < 60) return `${minutes.toFixed(0)} min`; const h = Math.floor(minutes / 60), m = Math.round(minutes % 60); return m ? `${h}h ${m}m` : `${h}h`; }
 function daysAgo(timestamp) { if (!Number.isFinite(timestamp)) return 'never'; const d = Math.floor((Date.now() - timestamp) / 86400000); return d <= 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`; }
 function average(values) { const clean = values.filter(Number.isFinite); return clean.length ? clean.reduce((s,v)=>s+v,0)/clean.length : null; }
-function escapeHtml(value) { return String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;'); }
-function labelFor(list, value) { return list.find(([id]) => id === value)?.[1] || value || 'None'; }
-function zoneOptions() { return state.zones?.length ? state.zones.map((z) => [z.id, z.name]) : DEFAULT_ZONES; }
-function zoneExists(zoneId) { return zoneOptions().some(([id]) => id === zoneId); }
-function zoneLabel(zoneId) { return labelFor(zoneOptions(), zoneId); }
-function selectedZoneId() { return el.zoneSelect.value || zoneOptions()[0]?.[0] || 'ride1'; }
-function selectedTrailId() { return el.trailSelect.value || ''; }
-function selectedWorkType() { return el.workTypeSelect.value || 'other'; }
 
 function normalizePoint(point) { return point && Number.isFinite(Number(point.lat)) && Number.isFinite(Number(point.lng)) ? { lat: Number(point.lat), lng: Number(point.lng), timestamp: Number.isFinite(point.timestamp) ? point.timestamp : Date.now() } : null; }
 function normalizeTrack(points = []) { return points.map(normalizePoint).filter(Boolean).slice(-MAX_TRACK_POINTS); }
 function normalizeZones(zones = []) {
-  const source = zones.length ? zones : DEFAULT_ZONES.map(([id,name]) => ({ id, name }));
-  return source.map((z, i) => ({ id: String(z.id || `zone-${i + 1}`).trim(), name: String(z.name || z.label || `Zone ${i + 1}`).trim(), notes: String(z.notes || ''), boundary: normalizeTrack(z.boundary || z.points || []) })).filter((z) => z.id && z.name);
+  const source = zones.length ? zones : [DEFAULT_COVERAGE_ZONE, ...DEFAULT_WORK_ZONES.map(([id,name]) => ({ id, name, notes: '', boundary: [] }))];
+  const seen = new Set();
+  const normalized = source.map((z, i) => ({ id: String(z.id || `zone-${i + 1}`).trim(), name: String(z.name || z.label || `Zone ${i + 1}`).trim(), type: z.type || z.role || '', notes: String(z.notes || ''), boundary: normalizeTrack(z.boundary || z.points || []) })).filter((z) => z.id && z.name && !seen.has(z.id) && seen.add(z.id));
+  if (!normalized.some(isCoverageZone)) normalized.unshift({ ...DEFAULT_COVERAGE_ZONE, boundary: normalizeTrack(DEFAULT_COVERAGE_ZONE.boundary) });
+  return normalized;
 }
 function normalizeTrailOverlays(trail = {}) { const old = !trail.overlays && !('mowing' in trail) && !('spraying' in trail); return { mowing: Boolean(trail.overlays?.mowing ?? trail.mowing ?? old), spraying: Boolean(trail.overlays?.spraying ?? trail.spraying ?? false) }; }
 function normalizeTrailFlags(trail = {}) { return { omRoad: Boolean(trail.flags?.omRoad ?? trail.omRoad ?? true), dailyTravel: Boolean(trail.flags?.dailyTravel ?? trail.dailyTravel ?? trail.overlays?.dailyTravel ?? false) }; }
 function normalizeTrails(trails = [], zones = normalizeZones()) {
-  const validZone = new Set(zones.map((z) => z.id));
-  const fallback = zones[0]?.id || 'ride1';
+  const selectableZones = zones.filter((z) => !isCoverageZone(z));
+  const validZone = new Set(selectableZones.map((z) => z.id));
+  const fallback = selectableZones[0]?.id || 'ride1';
   return trails.map((t,i) => ({ id: String(t.id || `trail-${Date.now()}-${i}`), name: String(t.name || `Trail ${i + 1}`), zoneId: validZone.has(t.zoneId) ? t.zoneId : fallback, overlays: normalizeTrailOverlays(t), flags: normalizeTrailFlags(t), estimatedMinutes: Number.isFinite(Number(t.estimatedMinutes)) ? Number(t.estimatedMinutes) : null, notes: String(t.notes || ''), points: normalizeTrack(t.points || []) })).filter((t) => t.points.length >= 2);
 }
 function normalizeMarkers(markers = [], zones = normalizeZones()) {
-  const validZone = new Set(zones.map((z) => z.id));
-  const fallback = zones[0]?.id || 'ride1';
+  const selectableZones = zones.filter((z) => !isCoverageZone(z));
+  const validZone = new Set(selectableZones.map((z) => z.id));
+  const fallback = selectableZones[0]?.id || 'ride1';
   return markers.map((a,i) => {
     const point = normalizePoint(a);
     const type = ASSET_TYPES.some(([id]) => id === a.type) ? a.type : 'note';
     return point ? { id: String(a.id || `marker-${Date.now()}-${i}`), type, zoneId: validZone.has(a.zoneId) ? a.zoneId : fallback, name: String(a.name || `Marker ${i + 1}`), notes: String(a.notes || ''), needsBrush: Boolean(a.needsBrush ?? a.needsClearing ?? DEFAULT_BRUSH_TYPES.has(type)), lat: point.lat, lng: point.lng, timestamp: Number.isFinite(a.timestamp) ? a.timestamp : Date.now(), lastVisited: Number.isFinite(a.lastVisited) ? a.lastVisited : null } : null;
   }).filter(Boolean);
 }
-function normalizeLogs(logs = [], zones = normalizeZones()) { const validZone = new Set(zones.map((z) => z.id)); const fallback = zones[0]?.id || 'ride1'; return logs.map((l,i) => ({ id: l.id || `log-${Date.now()}-${i}`, timestamp: Number.isFinite(l.timestamp) ? l.timestamp : Date.now(), startTime: Number.isFinite(l.startTime) ? l.startTime : null, endTime: Number.isFinite(l.endTime) ? l.endTime : null, zoneId: validZone.has(l.zoneId) ? l.zoneId : fallback, trailId: l.trailId || '', markerId: l.markerId || l.assetId || '', workType: WORK_TYPES.some(([id]) => id === l.workType) ? l.workType : 'other', durationMinutes: Number.isFinite(Number(l.durationMinutes)) ? Number(l.durationMinutes) : null, completed: Boolean(l.completed), notes: String(l.notes || '') })); }
-function normalizeZoneStatus(status = {}, zones = normalizeZones()) { const result = {}; for (const z of zones) { const v = status[z.id] || {}; result[z.id] = { lastVisited: Number.isFinite(v.lastVisited) ? v.lastVisited : null, lastCompleted: Number.isFinite(v.lastCompleted) ? v.lastCompleted : null, completedCount: Number.isFinite(v.completedCount) ? v.completedCount : 0 }; } return result; }
-function normalizeRecentSaves(items = [], zones = normalizeZones()) { const validZone = new Set(zones.map((z) => z.id)); return items.map((x,i) => ({ id: x.id || `recent-${Date.now()}-${i}`, timestamp: Number.isFinite(x.timestamp) ? x.timestamp : Date.now(), type: String(x.type || 'Saved'), zoneId: validZone.has(x.zoneId) ? x.zoneId : '', title: String(x.title || 'Saved record'), details: String(x.details || '') })).sort((a,b) => b.timestamp - a.timestamp).slice(0, MAX_RECENT_SAVES); }
+function normalizeLogs(logs = [], zones = normalizeZones()) { const validZone = new Set(zones.filter((z) => !isCoverageZone(z)).map((z) => z.id)); const fallback = [...validZone][0] || 'ride1'; return logs.map((l,i) => ({ id: l.id || `log-${Date.now()}-${i}`, timestamp: Number.isFinite(l.timestamp) ? l.timestamp : Date.now(), startTime: Number.isFinite(l.startTime) ? l.startTime : null, endTime: Number.isFinite(l.endTime) ? l.endTime : null, zoneId: validZone.has(l.zoneId) ? l.zoneId : fallback, trailId: l.trailId || '', markerId: l.markerId || l.assetId || '', workType: WORK_TYPES.some(([id]) => id === l.workType) ? l.workType : 'other', durationMinutes: Number.isFinite(Number(l.durationMinutes)) ? Number(l.durationMinutes) : null, completed: Boolean(l.completed), notes: String(l.notes || '') })); }
+function normalizeZoneStatus(status = {}, zones = normalizeZones()) { const result = {}; for (const z of zones.filter((zone) => !isCoverageZone(zone))) { const v = status[z.id] || {}; result[z.id] = { lastVisited: Number.isFinite(v.lastVisited) ? v.lastVisited : null, lastCompleted: Number.isFinite(v.lastCompleted) ? v.lastCompleted : null, completedCount: Number.isFinite(v.completedCount) ? v.completedCount : 0 }; } return result; }
+function normalizeRecentSaves(items = [], zones = normalizeZones()) { const validZone = new Set(zones.filter((z) => !isCoverageZone(z)).map((z) => z.id)); return items.map((x,i) => ({ id: x.id || `recent-${Date.now()}-${i}`, timestamp: Number.isFinite(x.timestamp) ? x.timestamp : Date.now(), type: String(x.type || 'Saved'), zoneId: validZone.has(x.zoneId) ? x.zoneId : '', title: String(x.title || 'Saved record'), details: String(x.details || '') })).sort((a,b) => b.timestamp - a.timestamp).slice(0, MAX_RECENT_SAVES); }
 function loadState() {
   let saved = safeParse(localStorage.getItem(STORAGE_KEY), null);
   for (const key of LEGACY_KEYS) { if (saved) break; saved = safeParse(localStorage.getItem(key), null); }
@@ -134,7 +156,7 @@ function saveState() {
 function saveRecord(type, title, details = '', zoneId = selectedZoneId()) { state.recentSaves.unshift({ id: `recent-${Date.now()}`, timestamp: Date.now(), type, zoneId, title, details }); state.recentSaves = normalizeRecentSaves(state.recentSaves, state.zones); saveState(); renderRecentSaves(); }
 
 function setStatusDates(zoneId, completed = false) { state.zoneStatus[zoneId] ||= { lastVisited: null, lastCompleted: null, completedCount: 0 }; state.zoneStatus[zoneId].lastVisited = Date.now(); if (completed) { state.zoneStatus[zoneId].lastCompleted = Date.now(); state.zoneStatus[zoneId].completedCount += 1; } }
-function populateSelect(select, options) { select.innerHTML = ''; for (const [value,label] of options) { const o = document.createElement('option'); o.value = value; o.textContent = label; select.append(o); } }
+function populateSelect(select, options) { const previous = select.value; select.innerHTML = ''; for (const [value,label] of options) { const o = document.createElement('option'); o.value = value; o.textContent = label; select.append(o); } if ([...select.options].some((o) => o.value === previous)) select.value = previous; }
 function overlayLabelList(overlays = {}) { const labels = []; if (overlays.mowing) labels.push('Mowing'); if (overlays.spraying) labels.push('Spraying'); return labels.length ? labels : ['No work overlay']; }
 function flagLabelList(flags = {}) { const labels = []; if (flags.omRoad) labels.push('O/M road'); if (flags.dailyTravel) labels.push('Daily rider travel'); return labels; }
 function trailById(id) { return state.drawnTrails.find((t) => t.id === id); }
@@ -149,7 +171,15 @@ function updateSummary() {
 function updateCounts() { el.trackCount.textContent = `${state.track.length} GPS point${state.track.length === 1 ? '' : 's'}`; el.drawnCount.textContent = `${state.drawnTrails.length} trail${state.drawnTrails.length === 1 ? '' : 's'}`; el.assetCount.textContent = `${state.assets.length} marker${state.assets.length === 1 ? '' : 's'}`; el.logCount.textContent = `${state.logs.length} log${state.logs.length === 1 ? '' : 's'}`; }
 function renderRecentSaves() { el.recentList.innerHTML = ''; if (!state.recentSaves.length) { const e = document.createElement('li'); e.className = 'empty-recent'; e.textContent = 'No saved records yet.'; el.recentList.append(e); return; } for (const item of state.recentSaves) { const li = document.createElement('li'); li.innerHTML = [`<strong>${escapeHtml(item.type)}: ${escapeHtml(item.title)}</strong>`,`<span>${escapeHtml(item.zoneId ? zoneLabel(item.zoneId) : 'No zone')} • ${new Date(item.timestamp).toLocaleString()}</span>`,item.details ? `<small>${escapeHtml(item.details)}</small>` : ''].filter(Boolean).join(''); el.recentList.append(li); } }
 
-function drawZones() { zoneLayer.clearLayers(); if (!el.showZonesCheck.checked) return; for (const z of state.zones) { if (z.boundary.length >= 3) { L.polygon(z.boundary.map(toLatLng), { color: '#38bdf8', weight: 2, fillOpacity: 0.05 }).bindPopup(`<strong>${escapeHtml(z.name)}</strong><br>${escapeHtml(z.notes || '')}`).addTo(zoneLayer); } } }
+function applyCoverageBounds({ fit = false } = {}) {
+  const zone = coverageZone();
+  if (!zone || zone.boundary.length < 3) { map.setMaxBounds(null); return; }
+  const bounds = L.latLngBounds(zone.boundary.map(toLatLng));
+  map.setMaxBounds(bounds.pad(0.02));
+  map.options.minZoom = 10;
+  if (fit) map.fitBounds(bounds, { padding: [24,24], maxZoom: 14 });
+}
+function drawZones() { zoneLayer.clearLayers(); if (!el.showZonesCheck.checked) return; for (const z of state.zones) { if (z.boundary.length >= 3) { const coverage = isCoverageZone(z); L.polygon(z.boundary.map(toLatLng), { color: coverage ? '#facc15' : '#38bdf8', weight: coverage ? 3 : 2, fillOpacity: coverage ? 0.02 : 0.05, dashArray: coverage ? '8 8' : null }).bindPopup(`<strong>${escapeHtml(z.name)}</strong><br>${escapeHtml(z.notes || '')}`).addTo(zoneLayer); } } }
 function trailPopup(trail) { const stats = trailStats(trail.id); return [`<strong>${escapeHtml(trail.name)}</strong>`,`<span>${escapeHtml(zoneLabel(trail.zoneId))}</span>`,`<span>Overlays: ${escapeHtml(overlayLabelList(trail.overlays).join(' + '))}</span>`,`<span>Flags: ${escapeHtml(flagLabelList(trail.flags).join(' + ') || 'none')}</span>`,`<span>Estimated: ${minutesLabel(trail.estimatedMinutes)}</span>`,`<span>Average actual: ${minutesLabel(stats.averageMinutes)}</span>`,`<span>Last worked: ${daysAgo(stats.lastWorked)}</span>`,trail.notes ? `<span>${escapeHtml(trail.notes)}</span>` : ''].filter(Boolean).join('<br>'); }
 function addTrailLine(trail, layer, options) { L.polyline(trail.points.map(toLatLng), options).bindPopup(trailPopup(trail)).addTo(layer); }
 function drawTrails() {
@@ -157,17 +187,14 @@ function drawTrails() {
   for (const trail of state.drawnTrails) {
     const both = trail.overlays.mowing && trail.overlays.spraying;
     if (both && el.showMowingCheck.checked && el.showSprayingCheck.checked) addTrailLine(trail, mowingLayer, { weight: 9, opacity: 0.72, color: '#14b8a6' });
-    else {
-      if (trail.overlays.mowing && el.showMowingCheck.checked) addTrailLine(trail, mowingLayer, { weight: 8, opacity: 0.58, color: '#22c55e' });
-      if (trail.overlays.spraying && el.showSprayingCheck.checked) addTrailLine(trail, sprayingLayer, { weight: 5, opacity: 0.9, color: '#a855f7', dashArray: '10 7' });
-    }
+    else { if (trail.overlays.mowing && el.showMowingCheck.checked) addTrailLine(trail, mowingLayer, { weight: 8, opacity: 0.58, color: '#22c55e' }); if (trail.overlays.spraying && el.showSprayingCheck.checked) addTrailLine(trail, sprayingLayer, { weight: 5, opacity: 0.9, color: '#a855f7', dashArray: '10 7' }); }
     if (trail.flags.omRoad) addTrailLine(trail, flagLayer, { weight: 2, opacity: 0.92, color: '#ffffff' });
     if (trail.flags.dailyTravel) addTrailLine(trail, flagLayer, { weight: 3, opacity: 0.96, color: '#facc15', dashArray: '2 10' });
   }
 }
 function markerPopup(marker) { return [`<strong>${escapeHtml(marker.name)}</strong>`,`<span>${escapeHtml(labelFor(ASSET_TYPES, marker.type))}</span>`,`<span>${escapeHtml(zoneLabel(marker.zoneId))}</span>`,`<span>${marker.needsBrush ? 'Needs brush / hazard cutting' : 'No brush flag'}</span>`,marker.notes ? `<span>${escapeHtml(marker.notes)}</span>` : ''].filter(Boolean).join('<br>'); }
 function drawMarkers() { markerLayer.clearLayers(); brushLayer.clearLayers(); for (const marker of state.assets) { const layer = marker.needsBrush && el.showBrushCheck.checked ? brushLayer : markerLayer; const opts = marker.needsBrush ? { radius: 10, weight: 3, color: '#ef4444', fillColor: '#f97316', fillOpacity: 0.86 } : { radius: 6, weight: 2, color: '#facc15', fillColor: '#facc15', fillOpacity: 0.8 }; if (!marker.needsBrush || el.showBrushCheck.checked) L.circleMarker([marker.lat, marker.lng], opts).bindPopup(markerPopup(marker)).addTo(layer); } }
-function drawAll() { drawZones(); drawTrails(); drawMarkers(); updateCounts(); updateSummary(); renderRecentSaves(); }
+function drawAll() { applyCoverageBounds(); drawZones(); drawTrails(); drawMarkers(); updateCounts(); updateSummary(); renderRecentSaves(); }
 
 function ensureGpsLayers() { if (!map.hasLayer(accuracyCircle)) accuracyCircle.addTo(map); if (!map.hasLayer(locationMarker)) locationMarker.addTo(map); }
 function updateMapPosition(point, addTrackPoint = false) { ensureGpsLayers(); const ll = toLatLng(point); locationMarker.setLatLng(ll); accuracyCircle.setLatLng(ll); accuracyCircle.setRadius(Number.isFinite(point.accuracy) ? point.accuracy : 0); const markerElement = locationMarker.getElement(); if (markerElement) { markerElement.style.setProperty('--heading', `${Number.isFinite(point.heading) ? point.heading : 0}deg`); markerElement.classList.toggle('has-heading', Number.isFinite(point.heading)); } if (addTrackPoint) trackLayer.addLatLng(ll); if (followMode) map.setView(ll, Math.max(map.getZoom(), 17), { animate: true }); }
@@ -221,7 +248,9 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('./service-wo
 populateControls();
 trackLayer.setLatLngs(state.track.map(toLatLng));
 drawAll();
-const latLngs = [...state.zones.flatMap((z)=>z.boundary.map(toLatLng)), ...state.drawnTrails.flatMap((t)=>t.points.map(toLatLng)), ...state.assets.map(toLatLng)];
-if (latLngs.length) map.fitBounds(L.latLngBounds(latLngs), { padding: [24,24], maxZoom: 15 });
+const definedLatLngs = [...state.zones.flatMap((z)=>z.boundary.map(toLatLng)), ...state.drawnTrails.flatMap((t)=>t.points.map(toLatLng)), ...state.assets.map(toLatLng)];
+const coverage = coverageZone();
+if (coverage?.boundary?.length >= 3) applyCoverageBounds({ fit: true });
+else if (definedLatLngs.length) map.fitBounds(L.latLngBounds(definedLatLngs), { padding: [24,24], maxZoom: 15 });
 if (!window.isSecureContext) setStatus('GPS needs HTTPS or localhost', 'error'); else if (!navigator.geolocation) setStatus('GPS unavailable in this browser', 'error'); else setStatus('Ready', 'ok');
 el.followBtn.classList.toggle('active', followMode);
