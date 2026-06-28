@@ -42,6 +42,16 @@
           <button id="clearTrackBtn" class="danger">Clear GPS Track</button>
         </section>
 
+        <section class="overlay-panel" aria-label="Visible work overlays">
+          <h2>Visible overlays</h2>
+          <div class="check-grid">
+            <label><input id="showMowingCheck" type="checkbox" checked /> Mowing</label>
+            <label><input id="showSprayingCheck" type="checkbox" checked /> Spraying</label>
+            <label><input id="showDailyTravelCheck" type="checkbox" checked /> Daily rider travel</label>
+            <label><input id="showClearingCheck" type="checkbox" checked /> Gate/check/valve clearing</label>
+          </div>
+        </section>
+
         <section class="ops-panel" aria-label="Irrigation operations tracking">
           <h2>Operations tracker</h2>
           <div class="field-grid">
@@ -57,6 +67,7 @@
             <label>Work type
               <select id="workTypeSelect"></select>
             </label>
+            <label class="check-label"><input id="assetNeedsClearingCheck" type="checkbox" checked /> Needs clearing</label>
           </div>
           <div id="zoneSummary" class="zone-summary">Select a zone to see status.</div>
           <div class="controls ops-controls">
@@ -77,6 +88,14 @@
         <section class="draw-panel" aria-label="Manual trail drawing tools">
           <h2>Manual trail marking</h2>
           <p id="drawHelp">Draw trails without driving them. Use freehand to sketch, or point mode to tap corners.</p>
+          <div class="trail-tags">
+            <h3>New trail overlays</h3>
+            <div class="check-grid">
+              <label><input id="trailMowingCheck" type="checkbox" checked /> Mowing</label>
+              <label><input id="trailSprayingCheck" type="checkbox" /> Spraying</label>
+              <label><input id="trailDailyTravelCheck" type="checkbox" /> Daily rider travel</label>
+            </div>
+          </div>
           <div class="controls draw-controls">
             <button id="freehandBtn">Freehand Draw</button>
             <button id="pointDrawBtn">Point-to-Point</button>
