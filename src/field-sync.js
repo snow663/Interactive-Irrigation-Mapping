@@ -1,5 +1,8 @@
 (() => {
-  const FIELD_STORAGE_KEY = 'interactive-irrigation-map-v7';
+  const FIELD_STORAGE_KEYS = [
+    'interactive-irrigation-map-v8',
+    'interactive-irrigation-map-v7'
+  ];
   const CANDIDATE_KEYS = [
     'interactive-irrigation-map-v8',
     'interactive-irrigation-map-v7',
@@ -23,6 +26,11 @@
     return {};
   }
 
+  function writeStateToPrototypeKeys(state) {
+    const value = JSON.stringify(state);
+    for (const key of FIELD_STORAGE_KEYS) localStorage.setItem(key, value);
+  }
+
   try {
     const xhr = new XMLHttpRequest();
     xhr.open('GET', `./data/definitions.json?ts=${Date.now()}`, false);
@@ -36,8 +44,9 @@
     state.zones = definitions.zones || state.zones || [];
     state.drawnTrails = definitions.drawnTrails || definitions.trails || state.drawnTrails || [];
     state.assets = definitions.assets || definitions.markers || state.assets || [];
+    state.lastDefinitionsSync = new Date().toISOString();
 
-    localStorage.setItem(FIELD_STORAGE_KEY, JSON.stringify(state));
+    writeStateToPrototypeKeys(state);
   } catch {
     // Offline or blocked. Field app will use the last local cached copy.
   }
