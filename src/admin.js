@@ -172,6 +172,24 @@ function drawDraft() {
   else L.polyline(latLngs, { color: '#facc15', weight: 6, dashArray: '8 6' }).addTo(draftLayer);
   drawDraftHandles();
 }
+function visibleMapBoundary() {
+  const bounds = adminMap.getBounds();
+  return [bounds.getNorthWest(), bounds.getNorthEast(), bounds.getSouthEast(), bounds.getSouthWest()].map(pointFromLatLng);
+}
+function useVisibleMapBoundary() {
+  draftPoints = visibleMapBoundary();
+  setActiveTool('zone', { clearDraft: false });
+  el.adminDrawHelp.textContent = 'Visible map area loaded as a rectangular zone boundary. Save Zone to keep it, or drag handles to adjust.';
+}
+function installVisibleMapButton() {
+  if (document.getElementById('useMapViewZoneBtn')) return;
+  const button = document.createElement('button');
+  button.id = 'useMapViewZoneBtn';
+  button.type = 'button';
+  button.textContent = 'Use Visible Map Area';
+  button.addEventListener('click', useVisibleMapBoundary);
+  el.drawZoneBtn.insertAdjacentElement('afterend', button);
+}
 function fitDefinedBounds() {
   const coverage = state.zones.find(isCoverageZone);
   const source = coverage?.boundary?.length >= 3 ? coverage.boundary : [...state.zones.flatMap((z) => z.boundary), ...state.drawnTrails.flatMap((t) => t.points), ...state.assets.map((m) => ({ lat: m.lat, lng: m.lng }))];
@@ -185,7 +203,7 @@ function setActiveTool(tool, { clearDraft = true, toggle = false } = {}) {
   el.drawZoneBtn.classList.toggle('active', activeTool === 'zone');
   el.drawTrailBtn.classList.toggle('active', activeTool === 'trail');
   el.dropMarkerBtn.classList.toggle('active', activeTool === 'marker');
-  el.adminDrawHelp.textContent = activeTool === 'zone' ? 'Tap the map to add boundary points. Drag numbered handles to resize. Undo removes the last point. Save Zone when finished. Select “Map Coverage Boundary” to edit the outer map limit.' : activeTool === 'trail' ? 'Tap the map to add road points. Drag numbered handles to adjust the road. Undo removes the last point. Save Trail when finished.' : activeTool === 'marker' ? 'Tap the marker location, then Save Marker.' : 'Select a tool, then tap the map.';
+  el.adminDrawHelp.textContent = activeTool === 'zone' ? 'Tap the map to add boundary points, or pan/zoom and use Save Zone with no draft points to save the visible map area. Drag numbered handles to resize.' : activeTool === 'trail' ? 'Tap the map to add road points. Drag numbered handles to adjust the road. Undo removes the last point. Save Trail when finished.' : activeTool === 'marker' ? 'Tap the marker location, then Save Marker.' : 'Select a tool, then tap the map.';
   drawDefinitions();
 }
 adminMap.on('click', (event) => {
@@ -208,9 +226,9 @@ function saveZone() {
   const existing = state.zones.find((z) => z.id === existingId);
   const id = isCoverageZone(existing) ? COVERAGE_ZONE_ID : slug(el.zoneIdInput.value, `zone-${state.zones.length + 1}`);
   const name = el.zoneNameInput.value.trim() || (id === COVERAGE_ZONE_ID ? 'Map Coverage Boundary' : id);
-  const matched = state.zones.find((z) => z.id === existingId || z.id === id);
   const coverage = isCoverageZone(existing) || id === COVERAGE_ZONE_ID;
-  const zone = { id, name, type: coverage ? 'coverage' : '', notes: el.zoneNotesInput.value.trim(), boundary: draftPoints.length >= 3 ? [...draftPoints] : (matched?.boundary || []) };
+  const boundary = draftPoints.length >= 3 ? [...draftPoints] : visibleMapBoundary();
+  const zone = { id, name, type: coverage ? 'coverage' : '', notes: el.zoneNotesInput.value.trim(), boundary };
   state.zones = state.zones.filter((z) => z.id !== existingId && z.id !== id);
   state.zones.push(zone);
   syncAllViews(); el.zoneAdminSelect.value = id; loadZone(zone);
@@ -316,6 +334,7 @@ function renderRecent() {
 function updateRecentEntry(index) { const item = state.recentSaves[index]; if (!item) return; for (const field of ['type','title','zoneId','details']) { const input = document.querySelector(`[data-field="${field}"][data-index="${index}"]`); if (input) item[field] = input.value; } syncAllViews(); }
 function deleteRecentEntry(index) { if (!state.recentSaves[index]) return; if (!window.confirm('Delete this Last 10 saved entry? Map definitions and logs are not deleted.')) return; state.recentSaves.splice(index, 1); syncAllViews(); }
 
+installVisibleMapButton();
 el.drawZoneBtn.addEventListener('click', () => setActiveTool('zone', { toggle: true }));
 el.drawTrailBtn.addEventListener('click', () => setActiveTool('trail', { toggle: true }));
 el.dropMarkerBtn.addEventListener('click', () => setActiveTool('marker', { toggle: true }));
