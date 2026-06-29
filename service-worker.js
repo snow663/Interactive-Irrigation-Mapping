@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'interactive-irrigation-map-v18';
+const CACHE_VERSION = 'interactive-irrigation-map-v19';
 const APP_SHELL = [
   './',
   './index.html',
@@ -48,6 +48,10 @@ function isAdminV2Script(url) {
   return url.pathname.endsWith('/src/admin-v2.js');
 }
 
+function isFieldScript(url) {
+  return url.pathname.endsWith('/src/app.js');
+}
+
 function patchCoverageDefaults(text) {
   return text
     .replaceAll('44.865000', '44.768000')
@@ -71,6 +75,30 @@ function patchAdminScript(text) {
       "L.circleMarker([marker.lat, marker.lng], { interactive: !activeTool, bubblingMouseEvents: true, radius:"
     );
   return `${patched}\nimport './admin-backup.js';\n`;
+}
+
+function patchAdminV2Script(text) {
+  return patchCoverageDefaults(text)
+    .replace(
+      "      featureType,\n      overlays: { mowing:",
+      "      featureType,\n      color: String(trail.color || ''),\n      ditchRider: String(trail.ditchRider || ''),\n      overlays: { mowing:"
+    )
+    .replace(
+      "function trailColor(trail, selected) {\n  if (selected) return '#facc15';",
+      "function trailColor(trail, selected) {\n  if (selected) return '#facc15';\n  if (trail.color) return trail.color;"
+    );
+}
+
+function patchFieldScript(text) {
+  return patchCoverageDefaults(text)
+    .replace(
+      "return trails.map((t,i) => ({ id: String(t.id || `trail-${Date.now()}-${i}`), name: String(t.name || `Trail ${i + 1}`), zoneId: validZone.has(t.zoneId) ? t.zoneId : fallback, overlays: normalizeTrailOverlays(t), flags: normalizeTrailFlags(t), estimatedMinutes: Number.isFinite(Number(t.estimatedMinutes)) ? Number(t.estimatedMinutes) : null, notes: String(t.notes || ''), points: normalizeTrack(t.points || []) })).filter((t) => t.points.length >= 2);",
+      "return trails.map((t,i) => ({ id: String(t.id || `trail-${Date.now()}-${i}`), name: String(t.name || `Trail ${i + 1}`), zoneId: validZone.has(t.zoneId) ? t.zoneId : fallback, featureType: String(t.featureType || t.kind || ''), color: String(t.color || ''), ditchRider: String(t.ditchRider || ''), overlays: normalizeTrailOverlays(t), flags: normalizeTrailFlags(t), estimatedMinutes: Number.isFinite(Number(t.estimatedMinutes)) ? Number(t.estimatedMinutes) : null, notes: String(t.notes || ''), points: normalizeTrack(t.points || []) })).filter((t) => t.points.length >= 2);"
+    )
+    .replace(
+      "for (const trail of state.drawnTrails) {\n    const both = trail.overlays.mowing && trail.overlays.spraying;",
+      "for (const trail of state.drawnTrails) {\n    if (trail.featureType === 'ride-track') addTrailLine(trail, flagLayer, { weight: 6, opacity: 0.95, color: trail.color || '#06b6d4' });\n    const both = trail.overlays.mowing && trail.overlays.spraying;"
+    );
 }
 
 async function transformedScript(request, transformer) {
@@ -132,7 +160,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   if (isAdminV2Script(url)) {
-    event.respondWith(transformedScript(request, patchCoverageDefaults));
+    event.respondWith(transformedScript(request, patchAdminV2Script));
+    return;
+  }
+  if (isFieldScript(url)) {
+    event.respondWith(transformedScript(request, patchFieldScript));
     return;
   }
   if (isDefinitionsFile(url)) {
