@@ -6,12 +6,12 @@
       "id": "map-coverage",
       "name": "Map Coverage / Page Edge",
       "type": "coverage",
-      "notes": "Default page edge: Belle Fourche to roughly five miles east of Newell, about ten miles north and south of the US 212 corridor.",
+      "notes": "Default page edge: Belle Fourche to roughly five miles east of Newell, about five miles north and south of the US 212 corridor.",
       "boundary": [
-        { "lat": 44.865000, "lng": -103.950000 },
-        { "lat": 44.865000, "lng": -103.315000 },
-        { "lat": 44.525000, "lng": -103.315000 },
-        { "lat": 44.525000, "lng": -103.950000 }
+        { "lat": 44.768000, "lng": -103.950000 },
+        { "lat": 44.768000, "lng": -103.315000 },
+        { "lat": 44.623000, "lng": -103.315000 },
+        { "lat": 44.623000, "lng": -103.950000 }
       ]
     },
     { "id": "ride1", "name": "Ride 1", "type": "work", "notes": "Paper map page: Ride 1", "boundary": [] },
