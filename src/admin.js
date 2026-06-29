@@ -2,18 +2,18 @@ const STORAGE_KEY = 'interactive-irrigation-map-v8';
 const LEGACY_KEYS = ['interactive-irrigation-map-v7','interactive-irrigation-map-v6','interactive-irrigation-map-v5','interactive-irrigation-map-v4','interactive-irrigation-map-v3','interactive-irrigation-map-v2','interactive-irrigation-map-v1'];
 const TOKEN_KEY = 'interactive-irrigation-github-token';
 const MAX_RECENT_SAVES = 10;
-const DEFAULT_CENTER = [44.6714, -103.8522];
+const DEFAULT_CENTER = [44.695, -103.6325];
 const COVERAGE_ZONE_ID = 'map-coverage';
 const DEFAULT_COVERAGE_ZONE = {
   id: COVERAGE_ZONE_ID,
-  name: 'Map Coverage Boundary',
+  name: 'Map Coverage / Page Edge',
   type: 'coverage',
-  notes: 'Large admin-defined map coverage zone. Field map pan/zoom is constrained to this boundary.',
+  notes: 'Default page edge: Belle Fourche to roughly five miles east of Newell, about ten miles north and south of the US 212 corridor.',
   boundary: [
-    { lat: 44.9, lng: -104.25 },
-    { lat: 44.9, lng: -103.45 },
-    { lat: 44.45, lng: -103.45 },
-    { lat: 44.45, lng: -104.25 }
+    { lat: 44.865000, lng: -103.950000 },
+    { lat: 44.865000, lng: -103.315000 },
+    { lat: 44.525000, lng: -103.315000 },
+    { lat: 44.525000, lng: -103.950000 }
   ]
 };
 const DEFAULT_WORK_ZONES = [['ride1','Ride 1'],['ride2','Ride 2'],['ride4','Ride 4'],['ride5','Ride 5'],['ride6','Ride 6'],['ride7','Ride 7'],['ride8','Ride 8'],['ride10','Ride 10']];
@@ -273,8 +273,7 @@ function saveMarker() {
   state.assets = state.assets.filter((m) => m.id !== existingId && m.id !== id);
   state.assets.push(marker);
   syncAllViews(); el.markerAdminSelect.value = id; loadMarker(marker);
-}
-function deleteMarker() { const marker = selectedMarker(); if (!marker) return; if (!window.confirm(`Delete marker ${marker.name}?`)) return; state.assets = state.assets.filter((m) => m.id !== marker.id); syncAllViews(); }
+}\nfunction deleteMarker() { const marker = selectedMarker(); if (!marker) return; if (!window.confirm(`Delete marker ${marker.name}?`)) return; state.assets = state.assets.filter((m) => m.id !== marker.id); syncAllViews(); }
 
 function parseEditor(text, label) { const value = JSON.parse(text || '[]'); if (!Array.isArray(value)) throw new Error(`${label} must be a JSON array.`); return value; }
 function saveDefinitionsFromJson() {
