@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'interactive-irrigation-map-v16';
+const CACHE_VERSION = 'interactive-irrigation-map-v17';
 const APP_SHELL = [
   './',
   './index.html',
@@ -46,6 +46,7 @@ function isAdminScript(url) {
 
 function patchAdminScript(text) {
   const patched = text
+    .replace('}\\nfunction deleteMarker', '}\nfunction deleteMarker')
     .replace(
       "L.polygon(zone.boundary.map((p) => [p.lat, p.lng]), { color: coverage ? '#facc15' : '#38bdf8',",
       "L.polygon(zone.boundary.map((p) => [p.lat, p.lng]), { interactive: !activeTool, bubblingMouseEvents: true, color: coverage ? '#facc15' : '#38bdf8',"
