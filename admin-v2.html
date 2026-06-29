@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f172a" />
+    <title>Irrigation Map Admin V2</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body class="admin-body">
+    <main class="admin-shell admin-v2-shell">
+      <header class="admin-header">
+        <div>
+          <h1>Admin Map Builder V2</h1>
+          <p>Clean visual editor for map coverage, ride zones, trails, roads, laterals, canals, markers, and backup files.</p>
+        </div>
+        <div class="top-actions">
+          <a class="ghost link-button" href="./index.html">Field map</a>
+          <a class="ghost link-button" href="./admin.html">Old admin</a>
+        </div>
+      </header>
+
+      <section class="admin-card sync-card">
+        <h2>Files / backup</h2>
+        <p>This editor is file-first. It stores edits in this browser, then lets you export <code>definitions.json</code> or a full data backup. On PC, copy the exported <code>definitions.json</code> over <code>data/definitions.json</code> and push with git.</p>
+        <div class="controls admin-map-tools">
+          <button id="loadRepoDefinitionsBtn" type="button">Reload repo definitions</button>
+          <button id="importFileBtn" type="button">Import JSON</button>
+          <button id="exportDefinitionsBtn" class="primary" type="button">Save definitions.json</button>
+          <button id="exportBackupBtn" type="button">Save full data backup</button>
+          <input id="importFileInput" type="file" accept="application/json,.json" hidden />
+        </div>
+        <div id="adminStatus" class="logistics-output">Loading editor...</div>
+      </section>
+
+      <section class="admin-card">
+        <h2>Map editor</h2>
+        <p>Pick an edit type, then tap the map to add points. Drag numbered handles to adjust. For the map page edge, select <strong>Map Coverage / Page Edge</strong>, pan/zoom to the desired area, then use <strong>Use Visible Map</strong>.</p>
+        <div class="controls admin-map-tools">
+          <button id="modePanBtn" type="button">Pan / Select</button>
+          <button id="modeZoneBtn" type="button">Draw Zone</button>
+          <button id="modeTrailBtn" type="button">Draw Trail</button>
+          <button id="modeMarkerBtn" type="button">Drop Marker</button>
+          <button id="useVisibleMapBtn" type="button">Use Visible Map</button>
+          <button id="undoPointBtn" type="button">Undo Point</button>
+          <button id="clearDraftBtn" class="danger" type="button">Clear Draft</button>
+          <button id="fitAllBtn" type="button">Fit All</button>
+        </div>
+        <div id="adminV2Map" class="admin-map" aria-label="Admin map builder"></div>
+        <div id="drawStatus" class="logistics-output">Use Pan / Select, or choose a draw mode.</div>
+      </section>
+
+      <section class="admin-card">
+        <h2>Map Coverage / Ride Zones</h2>
+        <div class="field-grid">
+          <label>Existing zone<select id="zoneSelect"></select></label>
+          <label>Zone ID<input id="zoneIdInput" placeholder="ride1" /></label>
+          <label>Zone name<input id="zoneNameInput" placeholder="Ride 1" /></label>
+          <label>Zone kind<select id="zoneKindSelect"><option value="work">Ride / work zone</option><option value="coverage">Map coverage / page edge</option></select></label>
+          <label>Notes<input id="zoneNotesInput" placeholder="optional notes" /></label>
+        </div>
+        <div class="controls">
+          <button id="newZoneBtn" type="button">New Zone</button>
+          <button id="loadZoneBtn" type="button">Load Zone</button>
+          <button id="saveZoneBtn" class="primary" type="button">Save Zone Boundary</button>
+          <button id="deleteZoneBtn" class="danger" type="button">Delete Zone</button>
+        </div>
+      </section>
+
+      <section class="admin-card">
+        <h2>Trails / Roads / Laterals / Canals</h2>
+        <div class="field-grid">
+          <label>Existing trail<select id="trailSelect"></select></label>
+          <label>Trail ID<input id="trailIdInput" placeholder="ride1-main-lateral" /></label>
+          <label>Trail name<input id="trailNameInput" placeholder="Ride 1 Main Lateral" /></label>
+          <label>Zone<select id="trailZoneSelect"></select></label>
+          <label>Feature type<select id="trailFeatureSelect"><option value="om-road">O/M road or access</option><option value="lateral">Lateral</option><option value="major-canal">Major canal</option><option value="road">Road/reference</option><option value="other">Other line</option></select></label>
+          <label>Estimated minutes<input id="trailMinutesInput" type="number" min="0" step="1" /></label>
+          <label>Notes<input id="trailNotesInput" placeholder="optional notes" /></label>
+        </div>
+        <div class="check-grid admin-checks">
+          <label><input id="trailMowingCheck" type="checkbox" /> Mowing overlay</label>
+          <label><input id="trailSprayingCheck" type="checkbox" /> Spraying overlay</label>
+          <label><input id="trailOmCheck" type="checkbox" checked /> O/M road / access</label>
+          <label><input id="trailDailyCheck" type="checkbox" /> Daily rider travel</label>
+        </div>
+        <div class="controls">
+          <button id="newTrailBtn" type="button">New Trail</button>
+          <button id="loadTrailBtn" type="button">Load Trail</button>
+          <button id="saveTrailBtn" class="primary" type="button">Save Trail</button>
+          <button id="deleteTrailBtn" class="danger" type="button">Delete Trail</button>
+        </div>
+      </section>
+
+      <section class="admin-card">
+        <h2>Markers / POIs / Hazards</h2>
+        <div class="field-grid">
+          <label>Existing marker<select id="markerSelect"></select></label>
+          <label>Marker ID<input id="markerIdInput" placeholder="headgate-101" /></label>
+          <label>Marker name<input id="markerNameInput" placeholder="Head Gate 101" /></label>
+          <label>Type<select id="markerTypeSelect"></select></label>
+          <label>Zone<select id="markerZoneSelect"></select></label>
+          <label>Latitude<input id="markerLatInput" type="number" step="0.000001" /></label>
+          <label>Longitude<input id="markerLngInput" type="number" step="0.000001" /></label>
+          <label>Notes<input id="markerNotesInput" placeholder="optional notes" /></label>
+          <label class="check-label"><input id="markerBrushCheck" type="checkbox" checked /> Needs brush / POI / hazard cutting</label>
+        </div>
+        <div class="controls">
+          <button id="newMarkerBtn" type="button">New Marker</button>
+          <button id="loadMarkerBtn" type="button">Load Marker</button>
+          <button id="saveMarkerBtn" class="primary" type="button">Save Marker</button>
+          <button id="deleteMarkerBtn" class="danger" type="button">Delete Marker</button>
+        </div>
+      </section>
+    </main>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script type="module" src="./src/admin-v2.js"></script>
+  </body>
+</html>
