@@ -1,11 +1,17 @@
 const STORAGE_KEY = 'interactive-irrigation-map-v8';
 const FIELD_STORAGE_KEY = 'interactive-irrigation-map-v7';
-const DEFAULT_CENTER = [44.6714, -103.8522];
+const DEFAULT_CENTER = [44.695, -103.6325];
 const COVERAGE_ZONE_ID = 'map-coverage';
+const DEFAULT_COVERAGE_BOUNDARY = [
+  { lat: 44.865000, lng: -103.950000 },
+  { lat: 44.865000, lng: -103.315000 },
+  { lat: 44.525000, lng: -103.315000 },
+  { lat: 44.525000, lng: -103.950000 }
+];
 const DEFAULT_ZONES = [
-  { id: COVERAGE_ZONE_ID, name: 'Map Coverage / Page Edge', type: 'coverage', notes: 'Outer page edge for pan/zoom limits.', boundary: [] },
+  { id: COVERAGE_ZONE_ID, name: 'Map Coverage / Page Edge', type: 'coverage', notes: 'Default page edge: Belle Fourche to roughly five miles east of Newell, about ten miles north and south of the US 212 corridor.', boundary: DEFAULT_COVERAGE_BOUNDARY },
   ...[['ride1','Ride 1'],['ride2','Ride 2'],['ride4','Ride 4'],['ride5','Ride 5'],['ride6','Ride 6'],['ride7','Ride 7'],['ride8','Ride 8'],['ride10','Ride 10']]
-    .map(([id, name]) => ({ id, name, type: 'work', notes: '', boundary: [] }))
+    .map(([id, name]) => ({ id, name, type: 'work', notes: `Paper map page: ${name}`, boundary: [] }))
 ];
 const ASSET_TYPES = [['head-gate','Head gate'],['valve','Valve'],['box','Box'],['check','Check'],['culvert','Culvert'],['crossing','Crossing'],['washout','Washout'],['spray-area','Spray area'],['hazard','Hazard'],['problem','Problem spot'],['poi','POI'],['note','Note']];
 const DEFAULT_BRUSH_TYPES = new Set(['head-gate','check','valve','washout','hazard','problem','poi']);
