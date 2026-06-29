@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'interactive-irrigation-map-v17';
+const CACHE_VERSION = 'interactive-irrigation-map-v18';
 const APP_SHELL = [
   './',
   './index.html',
@@ -44,8 +44,19 @@ function isAdminScript(url) {
   return url.pathname.endsWith('/src/admin.js');
 }
 
+function isAdminV2Script(url) {
+  return url.pathname.endsWith('/src/admin-v2.js');
+}
+
+function patchCoverageDefaults(text) {
+  return text
+    .replaceAll('44.865000', '44.768000')
+    .replaceAll('44.525000', '44.623000')
+    .replaceAll('about ten miles north and south of the US 212 corridor', 'about five miles north and south of the US 212 corridor');
+}
+
 function patchAdminScript(text) {
-  const patched = text
+  const patched = patchCoverageDefaults(text)
     .replace('}\\nfunction deleteMarker', '}\nfunction deleteMarker')
     .replace(
       "L.polygon(zone.boundary.map((p) => [p.lat, p.lng]), { color: coverage ? '#facc15' : '#38bdf8',",
@@ -62,7 +73,7 @@ function patchAdminScript(text) {
   return `${patched}\nimport './admin-backup.js';\n`;
 }
 
-async function patchedAdminScript(request) {
+async function transformedScript(request, transformer) {
   const cache = await caches.open(CACHE_VERSION);
   let response;
   try {
@@ -72,7 +83,7 @@ async function patchedAdminScript(request) {
     response = await cache.match(request);
   }
   if (!response) return new Response('', { status: 404 });
-  const text = patchAdminScript(await response.text());
+  const text = transformer(await response.text());
   return new Response(text, { headers: { 'Content-Type': 'application/javascript; charset=utf-8' } });
 }
 
@@ -117,7 +128,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   if (isAdminScript(url)) {
-    event.respondWith(patchedAdminScript(request));
+    event.respondWith(transformedScript(request, patchAdminScript));
+    return;
+  }
+  if (isAdminV2Script(url)) {
+    event.respondWith(transformedScript(request, patchCoverageDefaults));
     return;
   }
   if (isDefinitionsFile(url)) {
