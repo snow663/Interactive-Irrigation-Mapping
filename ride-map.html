@@ -7,7 +7,7 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Ride Map" />
-    <title>Ride Level Map</title>
+    <title>Ride Map</title>
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
     <link rel="stylesheet" href="./src/style.css" />
@@ -51,14 +51,13 @@
         <p>Select one ride map. Only that ride’s boundary, tracks, markers, and logs are shown.</p>
         <div class="ride-menu-actions">
           <button id="reloadRideDataBtn" type="button">Reload definitions</button>
-          <a class="ghost link-button" href="./index.html">Old field map</a>
-          <a class="ghost link-button" href="./admin-v2.html">Admin V2</a>
+          <a class="ghost link-button" href="./admin-v2.html">Admin</a>
         </div>
         <div id="rideCards" class="ride-card-list"></div>
       </aside>
 
       <section class="ride-map-stage">
-        <div id="rideLevelMap" aria-label="Selected ride level map"></div>
+        <div id="rideLevelMap" aria-label="Selected ride map"></div>
         <div class="ride-hud">
           <section class="ride-hud-card">
             <h2 id="rideTitle">No ride selected</h2>
@@ -76,7 +75,9 @@
     </main>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script src="./src/register-sw.js"></script>
     <script type="module" src="./src/user-session.js"></script>
-    <script type="module" src="./src/ride-map.js"></script>
+    <script src="./src/usgs-key.js"></script>
+    <script type="module" src="./src/current-ride-map.js"></script>
   </body>
 </html>
