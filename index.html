@@ -2,113 +2,20 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#0f172a" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="Irrigation GPS" />
+    <meta http-equiv="refresh" content="0; url=./ride-map.html" />
     <title>Interactive Irrigation Mapping</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
     <link rel="stylesheet" href="./src/style.css" />
   </head>
   <body>
-    <header class="topbar">
-      <div class="brand"><h1>Interactive Irrigation Mapping</h1><span id="connectionStatus" class="pill">Idle</span></div>
-      <div class="top-actions">
-        <a class="ghost link-button" href="./ride-map.html">Ride Map</a>
-        <button id="panelToggleBtn" class="ghost">Panel</button>
-        <button id="legendToggleBtn" class="ghost">Key</button>
-        <a class="ghost link-button" href="./admin.html">Admin</a>
-        <button id="installBtn" class="ghost" hidden>Install</button>
-      </div>
-    </header>
-
-    <main class="app-shell">
-      <div id="map" aria-label="Interactive GPS map"></div>
-
-      <aside id="legendPanel" class="legend-panel" aria-label="Map color and symbol key" hidden>
-        <h2>Map key</h2>
-        <div class="legend-row"><span class="line-swatch mowing"></span><span>Mowing road/stretch</span></div>
-        <div class="legend-row"><span class="line-swatch spraying"></span><span>Spraying road/stretch</span></div>
-        <div class="legend-row"><span class="line-swatch overlap"></span><span>Mowing + spraying overlap</span></div>
-        <div class="legend-row"><span class="line-swatch daily"></span><span>Daily rider travel flag</span></div>
-        <div class="legend-row"><span class="line-swatch om"></span><span>O/M road flag</span></div>
-        <div class="legend-row"><span class="point-swatch brush"></span><span>Brush / POI / hazard cutting point</span></div>
-        <div class="legend-row"><span class="point-swatch asset"></span><span>Other marker / note</span></div>
-      </aside>
-
-      <aside id="controlPanel" class="panel" aria-label="Field operations panel">
-        <section class="readout-grid">
-          <div><span class="label">Latitude</span><strong id="latReadout">--</strong></div>
-          <div><span class="label">Longitude</span><strong id="lngReadout">--</strong></div>
-          <div><span class="label">Accuracy</span><strong id="accuracyReadout">--</strong></div>
-          <div><span class="label">Speed</span><strong id="speedReadout">--</strong></div>
-          <div><span class="label">Heading</span><strong id="headingReadout">--</strong></div>
-          <div><span class="label">Altitude</span><strong id="altitudeReadout">--</strong></div>
-        </section>
-
-        <section class="controls">
-          <button id="gpsBtn" class="primary">Use My Location</button>
-          <button id="followBtn">Follow: On</button>
-          <button id="wakeBtn">Keep Screen Awake</button>
-          <button id="clearTrackBtn" class="danger">Clear GPS Track</button>
-        </section>
-
-        <section class="overlay-panel" aria-label="Visible work overlays">
-          <h2>Visible work overlays</h2>
-          <div class="check-grid">
-            <label><input id="showMowingCheck" type="checkbox" checked /> Mowing</label>
-            <label><input id="showSprayingCheck" type="checkbox" checked /> Spraying</label>
-            <label><input id="showBrushCheck" type="checkbox" checked /> Brush / POI / hazard cutting</label>
-            <label><input id="showZonesCheck" type="checkbox" checked /> Zone boundaries</label>
-          </div>
-        </section>
-
-        <section class="logistics-panel" aria-label="Route logistics helper">
-          <h2>Logistics</h2>
-          <div class="field-grid">
-            <label>Available hours<input id="availableHoursInput" type="number" min="0.5" max="14" step="0.5" value="6" /></label>
-            <label>Plan type
-              <select id="planTypeSelect">
-                <option value="mowing">Mowing</option>
-                <option value="spraying">Spraying</option>
-                <option value="brush">Brush / POI / hazard cutting</option>
-              </select>
-            </label>
-          </div>
-          <div class="controls logistics-controls"><button id="nearestOmBtn">Nearest O/M Entry</button><button id="planDayBtn" class="primary">Plan Work</button></div>
-          <div id="logisticsOutput" class="logistics-output">Use GPS or pan the map, then run a logistics check.</div>
-        </section>
-
-        <section class="ops-panel" aria-label="Daily field operations">
-          <h2>Daily operations</h2>
-          <p class="locked-note">Map definitions are locked here. Create or edit zones, trails, and markers from Admin.</p>
-          <div class="field-grid">
-            <label>Zone<select id="zoneSelect"></select></label>
-            <label>Trail / road stretch<select id="trailSelect"></select></label>
-            <label>Work type<select id="workTypeSelect"></select></label>
-          </div>
-          <div id="zoneSummary" class="zone-summary">Select a zone to see status.</div>
-          <div class="controls ops-controls">
-            <button id="markVisitedBtn">Mark Zone Visited</button>
-            <button id="markCompleteBtn" class="primary">Mark Zone Complete</button>
-            <button id="startWorkBtn">Start Work Timer</button>
-            <button id="stopWorkBtn" class="primary" disabled>Stop / Save Work</button>
-            <button id="addLogBtn">Add Log Note</button>
-          </div>
-        </section>
-
-        <section class="recent-panel" aria-label="Last 10 saved records"><h2>Last 10 saved</h2><ol id="recentList" class="recent-list"></ol></section>
-
-        <footer class="panel-footer"><span id="trackCount">0 GPS points</span><span id="drawnCount">0 trails</span><span id="assetCount">0 markers</span><span id="logCount">0 logs</span></footer>
-      </aside>
+    <main class="panel" style="max-width: 520px; margin: 10vh auto;">
+      <h1>Interactive Irrigation Mapping</h1>
+      <p>Opening the current ride map.</p>
+      <p><a class="ghost link-button" href="./ride-map.html">Open Ride Map</a></p>
     </main>
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-    <script type="module" src="./src/user-session.js"></script>
-    <script src="./src/map-extent.js"></script>
-    <script src="./src/field-sync.js"></script>
-    <script type="module" src="./src/app.js"></script>
+    <script src="./src/register-sw.js"></script>
+    <script>location.replace('./ride-map.html' + location.search + location.hash);</script>
   </body>
 </html>
