@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'interactive-irrigation-map-v21';
+const CACHE_VERSION = 'interactive-irrigation-map-v22';
 const APP_SHELL = [
   './',
   './index.html',
@@ -13,6 +13,7 @@ const APP_SHELL = [
   './src/field-sync.js',
   './src/admin-backup.js',
   './src/user-session.js',
+  './src/usgs-key.js',
   './src/ride-map.js',
   './src/admin-v2.js',
   './src/app.js',
@@ -37,7 +38,7 @@ self.addEventListener('activate', (event) => {
 });
 
 function isMapTile(url) {
-  return url.hostname.includes('tile.openstreetmap.org') || url.hostname.includes('arcgisonline.com') || url.hostname.includes('basemap.nationalmap.gov');
+  return url.hostname.includes('basemap.nationalmap.gov');
 }
 
 function isDefinitionsFile(url) {
@@ -56,6 +57,14 @@ function isFieldScript(url) {
   return url.pathname.endsWith('/src/app.js');
 }
 
+function isRideMapScript(url) {
+  return url.pathname.endsWith('/src/ride-map.js');
+}
+
+function isLoginPage(url) {
+  return url.pathname.endsWith('/login.html');
+}
+
 function patchCoverageDefaults(text) {
   return text
     .replaceAll('44.865000', '44.768000')
@@ -63,8 +72,32 @@ function patchCoverageDefaults(text) {
     .replaceAll('about ten miles north and south of the US 212 corridor', 'about five miles north and south of the US 212 corridor');
 }
 
+function usgsLayerBlock(topoName = 'usgsTopoLayer', imageryName = 'usgsImageryTopoLayer') {
+  return `const ${topoName} = L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16, attribution: 'USGS The National Map' });\nconst ${imageryName} = L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryTopo/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16, attribution: 'USGS The National Map' });`;
+}
+
+function patchBasemapChoices(text) {
+  return text
+    .replace(
+      "const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 20, attribution: '&copy; OpenStreetMap contributors' });\nconst imageryLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Tiles &copy; Esri' });\nstreetLayer.addTo(map);\nL.control.layers({ Streets: streetLayer, Imagery: imageryLayer }, {}, { position: 'topright' }).addTo(map);",
+      `${usgsLayerBlock('usgsTopoLayer', 'usgsImageryTopoLayer')}\nusgsTopoLayer.addTo(map);\nL.control.layers({ 'USGS Topo': usgsTopoLayer, 'USGS Imagery Topo': usgsImageryTopoLayer }, {}, { position: 'topright' }).addTo(map);`
+    )
+    .replace(
+      "const streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 20, attribution: '&copy; OpenStreetMap contributors' });\nconst usgsTopo = L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16, attribution: 'USGS The National Map' });\nconst usgsImageryTopo = L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryTopo/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16, attribution: 'USGS The National Map' });\nconst imagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Tiles &copy; Esri' });\nstreets.addTo(map);\nL.control.layers({ Streets: streets, 'USGS Topo': usgsTopo, 'USGS Imagery Topo': usgsImageryTopo, Imagery: imagery }, {}, { position: 'topright' }).addTo(map);",
+      `${usgsLayerBlock('usgsTopo', 'usgsImageryTopo')}\nusgsTopo.addTo(map);\nL.control.layers({ 'USGS Topo': usgsTopo, 'USGS Imagery Topo': usgsImageryTopo }, {}, { position: 'topright' }).addTo(map);`
+    )
+    .replace(
+      "const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 20, attribution: '&copy; OpenStreetMap contributors' });\nconst usgsTopo = L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16, attribution: 'USGS The National Map' });\nconst usgsImageryTopo = L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryTopo/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16, attribution: 'USGS The National Map' });\nconst esriImagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Tiles &copy; Esri' });\nosm.addTo(map);\nL.control.layers({ Streets: osm, 'USGS Topo': usgsTopo, 'USGS Imagery Topo': usgsImageryTopo, Imagery: esriImagery }, {}, { position: 'topright' }).addTo(map);",
+      `${usgsLayerBlock('usgsTopo', 'usgsImageryTopo')}\nusgsTopo.addTo(map);\nL.control.layers({ 'USGS Topo': usgsTopo, 'USGS Imagery Topo': usgsImageryTopo }, {}, { position: 'topright' }).addTo(map);`
+    )
+    .replace(
+      "L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 20, attribution: '&copy; OpenStreetMap contributors' }).addTo(adminMap);",
+      `${usgsLayerBlock('adminUsgsTopo', 'adminUsgsImageryTopo')}\nadminUsgsTopo.addTo(adminMap);\nL.control.layers({ 'USGS Topo': adminUsgsTopo, 'USGS Imagery Topo': adminUsgsImageryTopo }, {}, { position: 'topright' }).addTo(adminMap);`
+    );
+}
+
 function patchAdminScript(text) {
-  const patched = patchCoverageDefaults(text)
+  const patched = patchBasemapChoices(patchCoverageDefaults(text))
     .replace('}\\nfunction deleteMarker', '}\nfunction deleteMarker')
     .replace(
       "L.polygon(zone.boundary.map((p) => [p.lat, p.lng]), { color: coverage ? '#facc15' : '#38bdf8',",
@@ -82,7 +115,7 @@ function patchAdminScript(text) {
 }
 
 function patchAdminV2Script(text) {
-  return patchCoverageDefaults(text)
+  return patchBasemapChoices(patchCoverageDefaults(text))
     .replace(
       "      featureType,\n      overlays: { mowing:",
       "      featureType,\n      color: String(trail.color || ''),\n      ditchRider: String(trail.ditchRider || ''),\n      overlays: { mowing:"
@@ -94,7 +127,7 @@ function patchAdminV2Script(text) {
 }
 
 function patchFieldScript(text) {
-  return patchCoverageDefaults(text)
+  return patchBasemapChoices(patchCoverageDefaults(text))
     .replace(
       "return trails.map((t,i) => ({ id: String(t.id || `trail-${Date.now()}-${i}`), name: String(t.name || `Trail ${i + 1}`), zoneId: validZone.has(t.zoneId) ? t.zoneId : fallback, overlays: normalizeTrailOverlays(t), flags: normalizeTrailFlags(t), estimatedMinutes: Number.isFinite(Number(t.estimatedMinutes)) ? Number(t.estimatedMinutes) : null, notes: String(t.notes || ''), points: normalizeTrack(t.points || []) })).filter((t) => t.points.length >= 2);",
       "return trails.map((t,i) => ({ id: String(t.id || `trail-${Date.now()}-${i}`), name: String(t.name || `Trail ${i + 1}`), zoneId: validZone.has(t.zoneId) ? t.zoneId : fallback, featureType: String(t.featureType || t.kind || ''), color: String(t.color || ''), ditchRider: String(t.ditchRider || ''), overlays: normalizeTrailOverlays(t), flags: normalizeTrailFlags(t), estimatedMinutes: Number.isFinite(Number(t.estimatedMinutes)) ? Number(t.estimatedMinutes) : null, notes: String(t.notes || ''), points: normalizeTrack(t.points || []) })).filter((t) => t.points.length >= 2);"
@@ -121,6 +154,22 @@ function patchFieldScript(text) {
     );
 }
 
+function patchRideMapScript(text) {
+  return patchBasemapChoices(text);
+}
+
+function patchHtml(text, url) {
+  if (isLoginPage(url)) return text;
+  let patched = text;
+  if (!patched.includes('/src/user-session.js') && !patched.includes('./src/user-session.js')) {
+    patched = patched.replace('</body>', '    <script type="module" src="./src/user-session.js"></script>\n  </body>');
+  }
+  if (!patched.includes('/src/usgs-key.js') && !patched.includes('./src/usgs-key.js')) {
+    patched = patched.replace('</body>', '    <script src="./src/usgs-key.js"></script>\n  </body>');
+  }
+  return patched;
+}
+
 async function transformedScript(request, transformer) {
   const cache = await caches.open(CACHE_VERSION);
   let response;
@@ -133,6 +182,22 @@ async function transformedScript(request, transformer) {
   if (!response) return new Response('', { status: 404 });
   const text = transformer(await response.text());
   return new Response(text, { headers: { 'Content-Type': 'application/javascript; charset=utf-8' } });
+}
+
+async function transformedHtml(request, url) {
+  const cache = await caches.open(CACHE_VERSION);
+  try {
+    const response = await fetch(request);
+    const text = patchHtml(await response.text(), url);
+    const patchedResponse = new Response(text, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+    cache.put(request, patchedResponse.clone()).catch(() => {});
+    return patchedResponse;
+  } catch {
+    const cached = await cache.match(request) || await cache.match('./index.html');
+    if (!cached) return new Response('', { status: 404 });
+    const text = patchHtml(await cached.text(), url);
+    return new Response(text, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+  }
 }
 
 async function cacheFirst(request) {
@@ -172,7 +237,7 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
   if (request.mode === 'navigate') {
-    event.respondWith(networkFirst(request));
+    event.respondWith(transformedHtml(request, url));
     return;
   }
   if (isAdminScript(url)) {
@@ -185,6 +250,10 @@ self.addEventListener('fetch', (event) => {
   }
   if (isFieldScript(url)) {
     event.respondWith(transformedScript(request, patchFieldScript));
+    return;
+  }
+  if (isRideMapScript(url)) {
+    event.respondWith(transformedScript(request, patchRideMapScript));
     return;
   }
   if (isDefinitionsFile(url)) {
