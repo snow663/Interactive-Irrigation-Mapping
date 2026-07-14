@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'interactive-irrigation-map-v22';
+const CACHE_VERSION = 'interactive-irrigation-map-v23';
 const APP_SHELL = [
   './',
   './index.html',
@@ -155,18 +155,15 @@ function patchFieldScript(text) {
 }
 
 function patchRideMapScript(text) {
-  return patchBasemapChoices(text);
+  return patchBasemapChoices(patchCoverageDefaults(text));
 }
 
 function patchHtml(text, url) {
   if (isLoginPage(url)) return text;
-  let patched = text;
-  if (!patched.includes('/src/user-session.js') && !patched.includes('./src/user-session.js')) {
-    patched = patched.replace('</body>', '    <script type="module" src="./src/user-session.js"></script>\n  </body>');
-  }
-  if (!patched.includes('/src/usgs-key.js') && !patched.includes('./src/usgs-key.js')) {
-    patched = patched.replace('</body>', '    <script src="./src/usgs-key.js"></script>\n  </body>');
-  }
+  const sessionScript = '<script type="module" src="./src/user-session.js"></script>';
+  const keyScript = '<script src="./src/usgs-key.js"></script>';
+  let patched = text.includes('src="./src/user-session.js"') ? text : text.replace('</body>', `${sessionScript}\n  </body>`);
+  patched = patched.includes('src="./src/usgs-key.js"') ? patched : patched.replace('</body>', `${keyScript}\n  </body>`);
   return patched;
 }
 
@@ -185,19 +182,9 @@ async function transformedScript(request, transformer) {
 }
 
 async function transformedHtml(request, url) {
-  const cache = await caches.open(CACHE_VERSION);
-  try {
-    const response = await fetch(request);
-    const text = patchHtml(await response.text(), url);
-    const patchedResponse = new Response(text, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
-    cache.put(request, patchedResponse.clone()).catch(() => {});
-    return patchedResponse;
-  } catch {
-    const cached = await cache.match(request) || await cache.match('./index.html');
-    if (!cached) return new Response('', { status: 404 });
-    const text = patchHtml(await cached.text(), url);
-    return new Response(text, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
-  }
+  const response = await networkFirst(request);
+  const text = patchHtml(await response.text(), url);
+  return new Response(text, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
 }
 
 async function cacheFirst(request) {
