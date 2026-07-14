@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f172a" />
+    <title>Irrigation Login</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./src/style.css" />
+    <style>
+      body.login-body { min-height: 100vh; margin: 0; display: grid; place-items: center; background: radial-gradient(circle at top, #1e293b, #020617 64%); color: #e5e7eb; }
+      .login-card { width: min(92vw, 440px); border: 1px solid rgba(148,163,184,.28); border-radius: 22px; background: rgba(15,23,42,.94); padding: 22px; box-shadow: 0 24px 80px rgba(0,0,0,.42); }
+      .login-card h1 { margin: 0 0 8px; font-size: 1.5rem; }
+      .login-card p { margin: 0 0 18px; color: #94a3b8; line-height: 1.45; }
+      .login-card label { display: grid; gap: 6px; font-weight: 700; }
+      .login-card input { width: 100%; box-sizing: border-box; border: 1px solid rgba(148,163,184,.35); border-radius: 14px; padding: 13px; background: rgba(2,6,23,.7); color: #f8fafc; font-size: 1rem; }
+      .login-card .controls { margin-top: 16px; }
+      .login-note { margin-top: 14px; color: #facc15; font-size: .85rem; }
+    </style>
+  </head>
+  <body class="login-body">
+    <main class="login-card">
+      <h1>Irrigation Map Login</h1>
+      <p>Enter your name before using the field map. This labels saved logs, records, and future cloud-sync data by user.</p>
+      <form id="loginForm">
+        <label>Username
+          <input id="usernameInput" name="username" autocomplete="name" placeholder="Example: Jake" required autofocus />
+        </label>
+        <div class="controls">
+          <button class="primary" type="submit">Enter Map</button>
+        </div>
+      </form>
+      <div class="login-note">Username-only login identifies the operator. It is not password security.</div>
+    </main>
+    <script type="module" src="./src/user-session.js"></script>
+  </body>
+</html>
