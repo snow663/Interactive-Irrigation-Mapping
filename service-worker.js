@@ -1,7 +1,8 @@
-const CACHE_VERSION = 'interactive-irrigation-map-v20';
+const CACHE_VERSION = 'interactive-irrigation-map-v21';
 const APP_SHELL = [
   './',
   './index.html',
+  './login.html',
   './ride-map.html',
   './admin.html',
   './admin-v2.html',
@@ -11,6 +12,7 @@ const APP_SHELL = [
   './src/map-extent.js',
   './src/field-sync.js',
   './src/admin-backup.js',
+  './src/user-session.js',
   './src/ride-map.js',
   './src/admin-v2.js',
   './src/app.js',
@@ -98,8 +100,24 @@ function patchFieldScript(text) {
       "return trails.map((t,i) => ({ id: String(t.id || `trail-${Date.now()}-${i}`), name: String(t.name || `Trail ${i + 1}`), zoneId: validZone.has(t.zoneId) ? t.zoneId : fallback, featureType: String(t.featureType || t.kind || ''), color: String(t.color || ''), ditchRider: String(t.ditchRider || ''), overlays: normalizeTrailOverlays(t), flags: normalizeTrailFlags(t), estimatedMinutes: Number.isFinite(Number(t.estimatedMinutes)) ? Number(t.estimatedMinutes) : null, notes: String(t.notes || ''), points: normalizeTrack(t.points || []) })).filter((t) => t.points.length >= 2);"
     )
     .replace(
+      "function normalizeLogs(logs = [], zones = normalizeZones()) { const validZone = new Set(zones.filter((z) => !isCoverageZone(z)).map((z) => z.id)); const fallback = [...validZone][0] || 'ride1'; return logs.map((l,i) => ({ id: l.id || `log-${Date.now()}-${i}`, timestamp: Number.isFinite(l.timestamp) ? l.timestamp : Date.now(), startTime: Number.isFinite(l.startTime) ? l.startTime : null, endTime: Number.isFinite(l.endTime) ? l.endTime : null, zoneId: validZone.has(l.zoneId) ? l.zoneId : fallback, trailId: l.trailId || '', markerId: l.markerId || l.assetId || '', workType: WORK_TYPES.some(([id]) => id === l.workType) ? l.workType : 'other', durationMinutes: Number.isFinite(Number(l.durationMinutes)) ? Number(l.durationMinutes) : null, completed: Boolean(l.completed), notes: String(l.notes || '') })); }",
+      "function normalizeLogs(logs = [], zones = normalizeZones()) { const validZone = new Set(zones.filter((z) => !isCoverageZone(z)).map((z) => z.id)); const fallback = [...validZone][0] || 'ride1'; return logs.map((l,i) => ({ id: l.id || `log-${Date.now()}-${i}`, timestamp: Number.isFinite(l.timestamp) ? l.timestamp : Date.now(), startTime: Number.isFinite(l.startTime) ? l.startTime : null, endTime: Number.isFinite(l.endTime) ? l.endTime : null, userId: String(l.userId || ''), userName: String(l.userName || ''), zoneId: validZone.has(l.zoneId) ? l.zoneId : fallback, trailId: l.trailId || '', markerId: l.markerId || l.assetId || '', workType: WORK_TYPES.some(([id]) => id === l.workType) ? l.workType : 'other', durationMinutes: Number.isFinite(Number(l.durationMinutes)) ? Number(l.durationMinutes) : null, completed: Boolean(l.completed), notes: String(l.notes || '') })); }"
+    )
+    .replace(
+      "function normalizeRecentSaves(items = [], zones = normalizeZones()) { const validZone = new Set(zones.filter((z) => !isCoverageZone(z)).map((z) => z.id)); return items.map((x,i) => ({ id: x.id || `recent-${Date.now()}-${i}`, timestamp: Number.isFinite(x.timestamp) ? x.timestamp : Date.now(), type: String(x.type || 'Saved'), zoneId: validZone.has(x.zoneId) ? x.zoneId : '', title: String(x.title || 'Saved record'), details: String(x.details || '') })).sort((a,b) => b.timestamp - a.timestamp).slice(0, MAX_RECENT_SAVES); }",
+      "function normalizeRecentSaves(items = [], zones = normalizeZones()) { const validZone = new Set(zones.filter((z) => !isCoverageZone(z)).map((z) => z.id)); return items.map((x,i) => ({ id: x.id || `recent-${Date.now()}-${i}`, timestamp: Number.isFinite(x.timestamp) ? x.timestamp : Date.now(), type: String(x.type || 'Saved'), userId: String(x.userId || ''), userName: String(x.userName || ''), zoneId: validZone.has(x.zoneId) ? x.zoneId : '', title: String(x.title || 'Saved record'), details: String(x.details || '') })).sort((a,b) => b.timestamp - a.timestamp).slice(0, MAX_RECENT_SAVES); }"
+    )
+    .replace(
+      "function saveRecord(type, title, details = '', zoneId = selectedZoneId()) { state.recentSaves.unshift({ id: `recent-${Date.now()}`, timestamp: Date.now(), type, zoneId, title, details }); state.recentSaves = normalizeRecentSaves(state.recentSaves, state.zones); saveState(); renderRecentSaves(); }",
+      "function saveRecord(type, title, details = '', zoneId = selectedZoneId()) { const recordUser = window.IrrigationUser?.current?.() || null; state.recentSaves.unshift({ id: `recent-${Date.now()}`, timestamp: Date.now(), type, userId: recordUser?.id || '', userName: recordUser?.name || '', zoneId, title, details }); state.recentSaves = normalizeRecentSaves(state.recentSaves, state.zones); saveState(); renderRecentSaves(); }"
+    )
+    .replace(
       "for (const trail of state.drawnTrails) {\n    const both = trail.overlays.mowing && trail.overlays.spraying;",
       "for (const trail of state.drawnTrails) {\n    if (trail.featureType === 'ride-track') addTrailLine(trail, flagLayer, { weight: 6, opacity: 0.95, color: trail.color || '#06b6d4' });\n    const both = trail.overlays.mowing && trail.overlays.spraying;"
+    )
+    .replace(
+      "function addLog(entry) { const log = { id: `log-${Date.now()}`, timestamp: Date.now(), startTime: null, endTime: null, zoneId: selectedZoneId(), trailId: '', workType: selectedWorkType(), durationMinutes: null, completed: false, notes: '', ...entry }; state.logs.push(log); saveState(); updateCounts(); updateSummary(); return log; }",
+      "function addLog(entry) { const recordUser = window.IrrigationUser?.current?.() || null; const log = { id: `log-${Date.now()}`, timestamp: Date.now(), startTime: null, endTime: null, userId: recordUser?.id || '', userName: recordUser?.name || '', zoneId: selectedZoneId(), trailId: '', workType: selectedWorkType(), durationMinutes: null, completed: false, notes: '', ...entry }; state.logs.push(log); saveState(); updateCounts(); updateSummary(); return log; }"
     );
 }
 
