@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0f172a" />
-    <title>Irrigation Map Admin V2</title>
+    <title>Irrigation Map Admin</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
     <link rel="stylesheet" href="./src/style.css" />
   </head>
@@ -12,13 +12,11 @@
     <main class="admin-shell admin-v2-shell">
       <header class="admin-header">
         <div>
-          <h1>Admin Map Builder V2</h1>
-          <p>Clean visual editor for map coverage, ride zones, trails, roads, laterals, canals, markers, and backup files.</p>
+          <h1>Admin Map Builder</h1>
+          <p>Current visual editor for map coverage, ride zones, ride tracks, markers, and backup files.</p>
         </div>
         <div class="top-actions">
           <a class="ghost link-button" href="./ride-map.html">Ride Map</a>
-          <a class="ghost link-button" href="./index.html">Field map</a>
-          <a class="ghost link-button" href="./admin.html">Old admin</a>
         </div>
       </header>
 
@@ -70,11 +68,11 @@
       </section>
 
       <section class="admin-card">
-        <h2>Trails / Roads / Laterals / Canals</h2>
+        <h2>Trails / Ride Tracks</h2>
         <div class="field-grid">
           <label>Existing trail<select id="trailSelect"></select></label>
-          <label>Trail ID<input id="trailIdInput" placeholder="ride1-main-lateral" /></label>
-          <label>Trail name<input id="trailNameInput" placeholder="Ride 1 Main Lateral" /></label>
+          <label>Trail ID<input id="trailIdInput" placeholder="ride1-main-track" /></label>
+          <label>Trail name<input id="trailNameInput" placeholder="Ride 1 Main Track" /></label>
           <label>Zone<select id="trailZoneSelect"></select></label>
           <label>Feature type<select id="trailFeatureSelect"><option value="ride-track">Ride track</option><option value="om-road">O/M road or access</option><option value="lateral">Lateral</option><option value="major-canal">Major canal</option><option value="road">Road/reference</option><option value="other">Other line</option></select></label>
           <label>Estimated minutes<input id="trailMinutesInput" type="number" min="0" step="1" /></label>
@@ -117,7 +115,9 @@
     </main>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script src="./src/register-sw.js"></script>
     <script type="module" src="./src/user-session.js"></script>
+    <script src="./src/usgs-key.js"></script>
     <script type="module" src="./src/admin-v2.js"></script>
   </body>
 </html>
