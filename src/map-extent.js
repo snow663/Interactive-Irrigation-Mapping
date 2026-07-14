@@ -11,20 +11,13 @@
     attribution: 'USGS The National Map'
   });
 
-  const esriTopo = () => L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
-    maxZoom: 19,
-    attribution: 'Tiles &copy; Esri'
-  });
-
   const baseLayersControl = L.control.layers;
   L.control.layers = function patchedLayerControl(baseLayers = {}, overlays = {}, options = {}) {
-    const expandedBaseLayers = {
-      ...baseLayers,
-      'USGS Topo': usgsTopo(),
-      'USGS Imagery Topo': usgsImageryTopo(),
-      'Esri Topographic': esriTopo()
+    const usgsOnlyBaseLayers = {
+      'USGS Topo': baseLayers['USGS Topo'] || usgsTopo(),
+      'USGS Imagery Topo': baseLayers['USGS Imagery Topo'] || usgsImageryTopo()
     };
-    return baseLayersControl.call(this, expandedBaseLayers, overlays, options);
+    return baseLayersControl.call(this, usgsOnlyBaseLayers, overlays, options);
   };
 
   const baseSetMaxBounds = L.Map.prototype.setMaxBounds;
