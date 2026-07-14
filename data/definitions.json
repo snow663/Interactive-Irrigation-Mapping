@@ -1,27 +1,130 @@
 {
   "version": 1,
-  "updatedAt": "2026-06-28T00:00:00.000Z",
+  "updatedAt": "2026-06-29T00:00:00.000Z",
   "zones": [
     {
       "id": "map-coverage",
       "name": "Map Coverage / Page Edge",
       "type": "coverage",
-      "notes": "Default page edge: Belle Fourche to roughly five miles east of Newell, about five miles north and south of the US 212 corridor.",
+      "notes": "Default page edge: Belle Fourche to roughly five miles east of Newell. South edge extended to include Ride 8.",
       "boundary": [
-        { "lat": 44.768000, "lng": -103.950000 },
-        { "lat": 44.768000, "lng": -103.315000 },
-        { "lat": 44.623000, "lng": -103.315000 },
-        { "lat": 44.623000, "lng": -103.950000 }
+        {
+          "lat": 44.768,
+          "lng": -103.95
+        },
+        {
+          "lat": 44.768,
+          "lng": -103.315
+        },
+        {
+          "lat": 44.555,
+          "lng": -103.315
+        },
+        {
+          "lat": 44.555,
+          "lng": -103.95
+        }
       ]
     },
-    { "id": "ride1", "name": "Ride 1", "type": "work", "notes": "Paper map page: Ride 1", "boundary": [] },
-    { "id": "ride2", "name": "Ride 2", "type": "work", "notes": "Paper map page: Ride 2", "boundary": [] },
-    { "id": "ride4", "name": "Ride 4", "type": "work", "notes": "Paper map page: Ride 4", "boundary": [] },
-    { "id": "ride5", "name": "Ride 5", "type": "work", "notes": "Paper map page: Ride 5", "boundary": [] },
-    { "id": "ride6", "name": "Ride 6", "type": "work", "notes": "Paper map page: Ride 6", "boundary": [] },
-    { "id": "ride7", "name": "Ride 7", "type": "work", "notes": "Paper map page: Ride 7", "boundary": [] },
-    { "id": "ride8", "name": "Ride 8", "type": "work", "notes": "Paper map page: Ride 8", "boundary": [] },
-    { "id": "ride10", "name": "Ride 10", "type": "work", "notes": "Paper map page: Ride 10", "boundary": [] }
+    {
+      "id": "ride1",
+      "name": "Ride 1",
+      "type": "work",
+      "notes": "Paper map page: Ride 1",
+      "boundary": []
+    },
+    {
+      "id": "ride2",
+      "name": "Ride 2",
+      "type": "work",
+      "notes": "Paper map page: Ride 2",
+      "boundary": []
+    },
+    {
+      "id": "ride4",
+      "name": "Ride 4",
+      "type": "work",
+      "notes": "Paper map page: Ride 4",
+      "boundary": []
+    },
+    {
+      "id": "ride5",
+      "name": "Ride 5",
+      "type": "work",
+      "notes": "Paper map page: Ride 5",
+      "boundary": []
+    },
+    {
+      "id": "ride6",
+      "name": "Ride 6",
+      "type": "work",
+      "notes": "Paper map page: Ride 6",
+      "boundary": []
+    },
+    {
+      "id": "ride7",
+      "name": "Ride 7",
+      "type": "work",
+      "notes": "Paper map page: Ride 7",
+      "boundary": []
+    },
+    {
+      "id": "ride8",
+      "name": "Ride 8",
+      "type": "work",
+      "notes": "Ride 8 boundary digitized from submitted Ride 8 reference screenshot. Ditch rider: Lacy.",
+      "boundary": [
+        {
+          "lat": 44.676966,
+          "lng": -103.555361
+        },
+        {
+          "lat": 44.676981,
+          "lng": -103.458036
+        },
+        {
+          "lat": 44.62531,
+          "lng": -103.457026
+        },
+        {
+          "lat": 44.625315,
+          "lng": -103.375333
+        },
+        {
+          "lat": 44.580831,
+          "lng": -103.374821
+        },
+        {
+          "lat": 44.580842,
+          "lng": -103.501892
+        },
+        {
+          "lat": 44.627682,
+          "lng": -103.500895
+        },
+        {
+          "lat": 44.656801,
+          "lng": -103.555862
+        },
+        {
+          "lat": 44.656102,
+          "lng": -103.585121
+        },
+        {
+          "lat": 44.668432,
+          "lng": -103.585229
+        }
+      ],
+      "ditchRider": "Lacy",
+      "color": "#06b6d4"
+    },
+    {
+      "id": "ride10",
+      "name": "Ride 10",
+      "type": "work",
+      "notes": "Paper map page: Ride 10",
+      "boundary": []
+    }
   ],
   "drawnTrails": [],
   "assets": []
